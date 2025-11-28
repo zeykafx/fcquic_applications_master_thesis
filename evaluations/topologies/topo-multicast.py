@@ -11,13 +11,15 @@ delay = "1ms"
 buffer = 250
 
 
-def get_bw(client: int, heterogeneous: bool, proportions: dict[range, str]) -> str:
+def get_bw(client: int, heterogeneous: bool, proportions: dict[range, str]):
     if heterogeneous:
         for ran, bw in proportions.items():
             if client in ran:
                 return bw
     else:
         return bandwidth_medium
+    
+    return ""
 
 
 def set_link_properties(

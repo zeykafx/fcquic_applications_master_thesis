@@ -1,0 +1,21 @@
+topology:
+    routers: ["router1", "router2", "router3"]
+    servers: ["server1"]
+    clients: ["client1", "client2", "client3"]
+    
+    links:
+        - endpoints: ["router1", "router2"]
+          routers: true
+        - endpoints: ["router1", "router3"]
+          routers: true
+        - endpoints: ["router2", "router3"] 
+          routers: true
+        
+        - endpoints: ["router1", "server1"]
+          bw: "30Mbit"
+        - endpoints: ["router1", "client1"]
+          bw: "30Mbit"
+        - endpoints: ["router2", "client2"]
+          bw: "30Mbit"
+        - endpoints: ["router3", "client3"]
+          bw: "30Mbit"

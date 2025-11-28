@@ -57,7 +57,11 @@ class Topology:
             conf.get_interface(info["itf"]).ip.set_addr(
                 IPv4Network(f"{ip}/{prefix}", strict=False)
             )
-
+  
+    def get_ip(self, node1, node2):
+        info = self.get_itf_info(node1, node2)
+        return info["ip"]
+    
     def _set_link_property(self, node1, node2, property: str, value):
         info = self.get_itf_info(node1, node2)
         info[property] = value
