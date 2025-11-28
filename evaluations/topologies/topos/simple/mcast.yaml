@@ -2,28 +2,28 @@ topology:
     routers: ["router1", "router2", "router3"]
     servers: ["server1"]
     clients: ["client1", "client2", "client3"]
-    
+
     links:
         - endpoints: ["router1", "router2"]
           routers: true
+          loss: 20
         - endpoints: ["router1", "router3"]
           routers: true
-        - endpoints: ["router2", "router3"] 
+        - endpoints: ["router2", "router3"]
           routers: true
-        
-        
+
         - endpoints: ["router1", "server1"]
           bandwidth: "12.5Mbit"
           loss: 5
-          
+
         - endpoints: ["router1", "client1"]
           bandwidth: "12.5Mbit"
           loss: 5
-          
+
         - endpoints: ["router2", "client2"]
           bandwidth: "12.5Mbit"
           loss: 5
-          
+
         - endpoints: ["router3", "client3"]
           bandwidth: "12.5Mbit"
           loss: 5
