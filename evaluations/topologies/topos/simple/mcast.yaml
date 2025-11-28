@@ -6,7 +6,8 @@ topology:
     links:
         - endpoints: ["router1", "router2"]
           routers: true
-          loss: 20
+          loss: "5%" # todo investigate bug (out of path id)
+          
         - endpoints: ["router1", "router3"]
           routers: true
         - endpoints: ["router2", "router3"]
@@ -14,16 +15,17 @@ topology:
 
         - endpoints: ["router1", "server1"]
           bandwidth: "12.5Mbit"
-          loss: 5
+          loss: "5%"
+          # delay: "20ms"
 
         - endpoints: ["router1", "client1"]
           bandwidth: "12.5Mbit"
-          loss: 5
+          loss: "5%"
 
         - endpoints: ["router2", "client2"]
           bandwidth: "12.5Mbit"
-          loss: 5
+          loss: "5%"
 
         - endpoints: ["router3", "client3"]
           bandwidth: "12.5Mbit"
-          loss: 5
+          loss: "5%"

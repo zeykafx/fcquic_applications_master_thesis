@@ -83,10 +83,8 @@ class Topology:
     def set_loss_percentage(self, node1, node2, percentage):
         self._set_link_property(node1, node2, "loss_percentage", percentage)
 
-
     def set_burst_percentage(self, node1, node2, percentage):
         self._set_link_property(node1, node2, "burst_percentage", percentage)
-        
 
     def get_itfs(self, node: str):
         itfs = []
@@ -94,7 +92,7 @@ class Topology:
             itfs.append((info["itf"], info))
         return itfs
 
-    def get_peers_data(self, node: str) -> FRRouting:
+    def get_peers_data(self, node: str):
         peers = list(self.graph.edges(node, data=True))
         peer_info = []
         for _, peer, _ in peers:
@@ -175,8 +173,8 @@ class Topology:
         bw = data.get("bw", "100Mbit")
         limit = str(data.get("limit", "1000"))
         codel = data.get("codel", False)
-        loss_percentage = data.get("loss_percentage", "0")
-        burst_percentage = data.get("burst_percentage", "25")
+        loss_percentage = data.get("loss_percentage", "0%")
+        burst_percentage = data.get("burst_percentage", "25%")
         cmd = [
             "ip",
             "netns",
@@ -198,8 +196,8 @@ class Topology:
             "limit",
             limit,
         ]
-        if loss_percentage > 0:
-            cmd.extend(["loss", f"{loss_percentage}%", f"{burst_percentage}%"])
+        if loss_percentage != "0%":
+            cmd.extend(["loss", loss_percentage, burst_percentage])
         subprocess.run(cmd)
         if codel:
             subprocess.run(

@@ -11,10 +11,10 @@ bandwidth_medium = "6.5Mbit"
 bandwidth_low = "3.5Mbit"
 
 default_delay = "1ms"
-default_buffer = 250
+default_buffer = 1000  # buffer size in packets
+default_loss = "0%"
+default_loss_burst_percentage = "10%"
 default_codel = False
-default_loss = 0
-default_loss_burst_percentage = 25
 
 
 def set_link_properties(
@@ -24,8 +24,8 @@ def set_link_properties(
     bw: str,
     delay: str,
     buffer: int,
-    loss: int,
-    loss_burst_percentage: int = default_loss_burst_percentage,
+    loss: str,
+    loss_burst_percentage: str = default_loss_burst_percentage,
     codel: bool = False,
 ):
     topo.set_bw(node, itf, bw)
@@ -101,9 +101,8 @@ def main():
 
     # for each link in the config, add a link between the two nodese, set the bandwidth, loss,...
     router_links, other_links = 0, 0
-    server_ips, client_ips = [], []
-    clients_tc = {}
-    servers_tc = {}
+    ips = {}
+    tc_info = {}
 
     for link in links:
         endpoints = link["endpoints"]
@@ -124,22 +123,20 @@ def main():
 
         # If any of the two nodes is a server or a client, record the a tuple (node, ip)
         for node, other in [(node1, node2), (node2, node1)]:
-            if node in servers:
-                server_ips.append((node, topo.get_ip(node, other)))
-            elif node in clients:
-                client_ips.append((node, topo.get_ip(node, other)))
+            if node in servers or node in clients:
+                ips[node] = topo.get_ip(node, other)
 
         bw = link["bandwidth"] if "bandwidth" in link else bandwidth_high
         loss_percentage = link["loss"] if "loss" in link else default_loss
-        set_link_properties(
-            topo, node1, node2, bw, default_delay, default_buffer, loss_percentage
-        )
+        delay = link["delay"] if "delay" in link else default_delay
+        buffer = link["buffer"] if "buffer" in link else default_buffer
+        set_link_properties(topo, node1, node2, bw, delay, buffer, loss_percentage)
 
         client_node = node1 if node1 in clients else node2
-        clients_tc[client_node] = (bw, loss_percentage)
-        
+        tc_info[client_node] = (bw, loss_percentage, delay, buffer)
+
         server_node = node1 if node1 in servers else node2
-        servers_tc[server_node] = (bw, loss_percentage)
+        tc_info[server_node] = (bw, loss_percentage, delay, buffer)
 
         if verbose:
             print(
@@ -176,17 +173,12 @@ def main():
         print("Topology running")
         print()
         print("Hosts")
-        print("Name\t\tIP\t\tBW\tLOSS")
+        print("Name\t\tIP\t\tBW\t\tLOSS\tDELAY\tBUFFER SIZE")
 
-        for server, server_ip in server_ips:
-            bw, loss = servers_tc[server]
-            print(f"{server}\t\t{server_ip}\t{bw}\t{loss}")
+        for node, ip in ips.items():
+            bw, loss, delay, buffer = tc_info[node]
+            print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}")
 
-        for client, client_ip in client_ips:
-            bw, loss = clients_tc[client]
-            print(f"{client}\t\t{client_ip}\t{bw}\t{loss}")
-
-        print()
     else:
         topo.teardown()
 
