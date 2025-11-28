@@ -1,0 +1,6 @@
+[submodule "fcquic_chat"]
+	path = fcquic_chat
+	url = https://github.com/zeykafx/fcquic_chat.git
+[submodule "multicast-quic"]
+	path = multicast-quic
+	url = https://github.com/zeykafx/multicast-quic.git
