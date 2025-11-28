@@ -57,11 +57,11 @@ class Topology:
             conf.get_interface(info["itf"]).ip.set_addr(
                 IPv4Network(f"{ip}/{prefix}", strict=False)
             )
-  
+
     def get_ip(self, node1, node2):
         info = self.get_itf_info(node1, node2)
         return info["ip"]
-    
+
     def _set_link_property(self, node1, node2, property: str, value):
         info = self.get_itf_info(node1, node2)
         info[property] = value
@@ -79,6 +79,14 @@ class Topology:
 
     def enable_codel(self, node1, node2, enabled: bool):
         self._set_link_property(node1, node2, "codel", enabled)
+
+    def set_loss_percentage(self, node1, node2, percentage):
+        self._set_link_property(node1, node2, "loss_percentage", percentage)
+
+
+    def set_burst_percentage(self, node1, node2, percentage):
+        self._set_link_property(node1, node2, "burst_percentage", percentage)
+        
 
     def get_itfs(self, node: str):
         itfs = []
@@ -167,29 +175,32 @@ class Topology:
         bw = data.get("bw", "100Mbit")
         limit = str(data.get("limit", "1000"))
         codel = data.get("codel", False)
-        subprocess.run(
-            [
-                "ip",
-                "netns",
-                "exec",
-                f"{node}",
-                "tc",
-                "qdisc",
-                "add",
-                "dev",
-                f"{data['itf']}",
-                "root",
-                "handle",
-                "1:",
-                "netem",
-                "delay",
-                delay,
-                "rate",
-                bw,
-                "limit",
-                limit,
-            ]
-        )
+        loss_percentage = data.get("loss_percentage", "0")
+        burst_percentage = data.get("burst_percentage", "25")
+        cmd = [
+            "ip",
+            "netns",
+            "exec",
+            f"{node}",
+            "tc",
+            "qdisc",
+            "add",
+            "dev",
+            f"{data['itf']}",
+            "root",
+            "handle",
+            "1:",
+            "netem",
+            "delay",
+            delay,
+            "rate",
+            bw,
+            "limit",
+            limit,
+        ]
+        if loss_percentage > 0:
+            cmd.extend(["loss", f"{loss_percentage}%", f"{burst_percentage}%"])
+        subprocess.run(cmd)
         if codel:
             subprocess.run(
                 [
@@ -320,7 +331,6 @@ class Topology:
 
     def _teardown_node(self, node: str):
         subprocess.run(["ip", "netns", "del", f"{node}"])
-
 
     def teardown(self):
         for node in self.graph.nodes:

@@ -9,20 +9,12 @@ bandwidth_source = "30Mbit"
 bandwidth_high = "12.5Mbit"
 bandwidth_medium = "6.5Mbit"
 bandwidth_low = "3.5Mbit"
-delay = "1ms"
-buffer = 250
-codel = False
 
-
-def get_bw(client: int, heterogeneous: bool, proportions: dict[range, str]):
-    if heterogeneous:
-        for ran, bw in proportions.items():
-            if client in ran:
-                return bw
-    else:
-        return bandwidth_medium
-
-    return ""
+default_delay = "1ms"
+default_buffer = 250
+default_codel = False
+default_loss = 0
+default_loss_burst_percentage = 25
 
 
 def set_link_properties(
@@ -32,11 +24,15 @@ def set_link_properties(
     bw: str,
     delay: str,
     buffer: int,
+    loss: int,
+    loss_burst_percentage: int = default_loss_burst_percentage,
     codel: bool = False,
 ):
     topo.set_bw(node, itf, bw)
     topo.set_delay(node, itf, delay)
     topo.set_limit(node, itf, buffer)
+    topo.set_loss_percentage(node, itf, loss)
+    topo.set_burst_percentage(node, itf, loss_burst_percentage)
     topo.enable_codel(node, itf, codel)
 
 
@@ -44,39 +40,16 @@ def file_path(path):
     if os.path.isfile(path):
         return path
     else:
-        raise argparse.ArgumentTypeError(
-            f"readable_dir:{path} is not a valid file path"
-        )
+        raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
 
 
-def main():
-    parser = argparse.ArgumentParser("topo")
-    parser.add_argument("config_path", type=file_path)
-    parser.add_argument("mode", choices=["setup", "teardown"])
-    parser.add_argument("-v", "--verbose", default=False)
-
-    args = parser.parse_args()
-    verbose = args.verbose
-
-    # rates = [bandwidth_medium, bandwidth_low, bandwidth_high]
-    # clients_bws = {}
-    # count = 1
-    # for i, prop in enumerate(args.proportions.split(",")):
-    #     val = int(prop)
-    #     clients_bws[range(count, count + val)] = rates[i]
-    #     count += val
-
-    conf_file = args.config_path
-    routers = []
-    servers = []
-    clients = []
-    links = []
-    with open(conf_file) as conf_fd:
+def parse_config_file(
+    filepath: str,
+):
+    with open(filepath) as conf_fd:
         conf_yml = yaml.safe_load(conf_fd)
         if "topology" not in conf_yml:
-            raise Exception(
-                f"Topology key not found in configuration file {conf_file}!"
-            )
+            raise Exception(f"Topology key not found in configuration file {filepath}!")
 
         topology = conf_yml["topology"]
         # keys below are required keys
@@ -85,24 +58,31 @@ def main():
         if not all(key in topology for key in keys):
             missing = [key for key in keys if key not in topology]
             raise Exception(
-                f"Key(s) '{', '.join(missing)}' not found in configuration file {conf_file}!"
+                f"Key(s) '{', '.join(missing)}' not found in configuration file {filepath}!"
             )
 
-        routers = topology["routers"]
-        servers = topology["servers"]
-        clients = topology["clients"]
-        links = topology["links"]
+        # return a tuple with the list of routers, servers, clients, and links
+        return (topology[key] for key in keys)
+
+
+def main():
+    parser = argparse.ArgumentParser("topo")
+    parser.add_argument("config_path", type=file_path)
+    parser.add_argument("mode", choices=["setup", "teardown"])
+    parser.add_argument("-v", "--verbose", action="store_true")
+
+    args = parser.parse_args()
+    verbose = args.verbose
+
+    conf_file = args.config_path
+
+    routers, servers, clients, links = parse_config_file(conf_file)
 
     topo = Topology()
 
-    # topo.add_node(router1, router=True)
-    # topo.add_node(router2, router=True)
-    # topo.add_link(router1, router2, IPv4Network("10.2.0.0/24"))
-    # set_link_properties(topo, router1, router2, bandwidth_source, delay, buffer, codel)
-
     for id, router in enumerate(routers):
         if verbose:
-            print(f"Adding router {router} (id: {id}")
+            print(f"Adding router {router} (id: {id})")
 
         topo.add_node(router, router=True)
         topo.set_loopback(router, IPv4Address(f"10.255.1.{id}"), 32)
@@ -119,10 +99,12 @@ def main():
 
         topo.add_node(client)
 
-    router_links = 0
-    other_links = 0
-    server_ips = []
-    client_ips = []
+    # for each link in the config, add a link between the two nodese, set the bandwidth, loss,...
+    router_links, other_links = 0, 0
+    server_ips, client_ips = [], []
+    clients_tc = {}
+    servers_tc = {}
+
     for link in links:
         endpoints = link["endpoints"]
         node1 = endpoints[0]
@@ -147,23 +129,24 @@ def main():
             elif node in clients:
                 client_ips.append((node, topo.get_ip(node, other)))
 
-        # if node1 in servers: 
-        #     server_ips.append((node1, topo.get_ip(node1, node2)))
-        # elif node2 in servers:
-        #     server_ips.append((node2, topo.get_ip(node2, node1)))
+        bw = link["bandwidth"] if "bandwidth" in link else bandwidth_high
+        loss_percentage = link["loss"] if "loss" in link else default_loss
+        set_link_properties(
+            topo, node1, node2, bw, default_delay, default_buffer, loss_percentage
+        )
 
-        # if node1 in clients:
-        #     client_ips.append((node1, topo.get_ip(node1, node2)))
-        # elif node2 in clients:
-        #     client_ips.append((node2, topo.get_ip(node2, node1)))
+        client_node = node1 if node1 in clients else node2
+        clients_tc[client_node] = (bw, loss_percentage)
+        
+        server_node = node1 if node1 in servers else node2
+        servers_tc[server_node] = (bw, loss_percentage)
 
-        bw = link["bw"] if "bw" in link else bandwidth_high
-        set_link_properties(topo, node1, node2, bw, delay, buffer)
         if verbose:
             print(
-                f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}"
+                f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}"
             )
 
+    # setup the routers' interfaces
     for id, router in enumerate(routers):
         if verbose:
             print(f"Setting up router {router}")
@@ -193,20 +176,15 @@ def main():
         print("Topology running")
         print()
         print("Hosts")
-        print("Name\t\tIP\t\tBW")
+        print("Name\t\tIP\t\tBW\tLOSS")
 
         for server, server_ip in server_ips:
-            print(f"{server}\t\t{server_ip}")
+            bw, loss = servers_tc[server]
+            print(f"{server}\t\t{server_ip}\t{bw}\t{loss}")
 
         for client, client_ip in client_ips:
-            # bw = get_bw(i, args.heterogeneous, clients_bws)
-            # if bw == bandwidth_medium:
-            #     bw = "Medium"
-            # elif bw == bandwidth_low:
-            #     bw = "Low"
-            # else:
-            #     bw = "High"
-            print(f"{client}\t\t{client_ip}")
+            bw, loss = clients_tc[client]
+            print(f"{client}\t\t{client_ip}\t{bw}\t{loss}")
 
         print()
     else:

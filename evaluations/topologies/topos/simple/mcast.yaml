@@ -11,11 +11,19 @@ topology:
         - endpoints: ["router2", "router3"] 
           routers: true
         
+        
         - endpoints: ["router1", "server1"]
-          bw: "30Mbit"
+          bandwidth: "12.5Mbit"
+          loss: 5
+          
         - endpoints: ["router1", "client1"]
-          bw: "30Mbit"
+          bandwidth: "12.5Mbit"
+          loss: 5
+          
         - endpoints: ["router2", "client2"]
-          bw: "30Mbit"
+          bandwidth: "12.5Mbit"
+          loss: 5
+          
         - endpoints: ["router3", "client3"]
-          bw: "30Mbit"
+          bandwidth: "12.5Mbit"
+          loss: 5
