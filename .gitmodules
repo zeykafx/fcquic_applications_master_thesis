@@ -3,4 +3,4 @@
 	url = https://github.com/zeykafx/fcquic_chat.git
 [submodule "multicast-quic"]
 	path = multicast-quic
-	url = https://github.com/zeykafx/multicast-quic.git
+	url = git@forge.uclouvain.be:codetry/multicast-quic.git

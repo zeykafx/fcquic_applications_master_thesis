@@ -285,7 +285,7 @@ class Topology:
 
     def _start_frrouting(self, node):
         path = "/usr/lib/frr"  # installed manually
-        os.mkdir(f"/etc/frr/{node}")
+        os.makedirs(f"/etc/frr/{node}", exist_ok=True)
 
         shutil.copyfile("./daemons", f"/etc/frr/{node}/daemons")
         shutil.copyfile(f"{node}.conf", f"/etc/frr/{node}/frr.conf")
