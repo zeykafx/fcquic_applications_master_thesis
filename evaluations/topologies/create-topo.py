@@ -16,7 +16,8 @@ bandwidth_medium = "6.5Mbit"
 bandwidth_low = "3.5Mbit"
 
 default_bandwidth = bandwidth_source
-default_multicast_enabled = True
+default_multicast_enabled_router = True
+default_multicast_enabled_link = True
 default_delay = "1ms"
 default_buffer = 1000  # buffer size in packets
 default_loss = "0%"
@@ -32,6 +33,7 @@ def set_link_properties(
     delay: str,
     buffer: int,
     loss: str,
+    multicast: bool,
     loss_burst_percentage: str = default_loss_burst_percentage,
     codel: bool = False,
 ):
@@ -39,6 +41,7 @@ def set_link_properties(
     topo.set_delay(node, itf, delay)
     topo.set_limit(node, itf, buffer)
     topo.set_loss_percentage(node, itf, loss)
+    topo.set_multicast_enabled(node, itf, multicast)
     topo.set_burst_percentage(node, itf, loss_burst_percentage)
     topo.enable_codel(node, itf, codel)
 
@@ -122,6 +125,9 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
     else:
         # {'num': 3, 'overrides': {'router1': {'multicast': False}}, 'links': [{'endpoints': ['router1', 'router2']}, {'endpoints': ['router1', 'router3']}, {'endpoints': ['router2', 'router3']}]}
 
+        
+        # We can specify how many routers we want
+        # e.g., "num: 4" will result in router1, router2, router3, and router4 to be created
         if "num" in routers:
             for id in range(1, routers["num"] + 1):
                 router = f"router{id}"
@@ -130,6 +136,19 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
                 if verbose:
                     print(f"Adding router: {router} (id: {id})")
 
+                topo.add_node(router, router=True)
+                lo_ip = IPv4Address(f"10.255.1.{id}")
+                ips[router] = lo_ip
+                topo.set_loopback(router, lo_ip, 32)
+                
+        elif "list" in routers:
+            # if "num" is not specified, then we can have a list of router names under the "list" key
+            # ["router1", "router2"]
+            for id, router in enumerate(routers["list"]):
+                routers_list.append(router)
+                if verbose:
+                    print(f"Adding router: {router} (id: {id})")
+    
                 topo.add_node(router, router=True)
                 lo_ip = IPv4Address(f"10.255.1.{id}")
                 ips[router] = lo_ip
@@ -147,6 +166,7 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
                 router_links, _, _ = configure_link(
                     link, router_links, {}, {}, [], [], [], topo, router_link=True
                 )
+        
     return routers_list, ips, tc_info
 
 
@@ -185,7 +205,7 @@ def configure_link(
     endpoints = link["endpoints"]
     node1 = endpoints[0]
     node2 = endpoints[1]
-    
+
     if not router_link and (node1 in routers and node2 in routers):
         router_link = True
 
@@ -212,20 +232,31 @@ def configure_link(
     )
     delay = link["delay"] if "delay" in link else default_delay
     buffer = link["buffer"] if "buffer" in link else default_buffer
+    multicast = (
+        link["multicast"] if "multicast" in link else default_multicast_enabled_link
+    )
     set_link_properties(
-        topo, node1, node2, bw, delay, buffer, loss_percentage, burst_percentage
+        topo,
+        node1,
+        node2,
+        bw,
+        delay,
+        buffer,
+        loss_percentage,
+        multicast,
+        burst_percentage,
     )
 
     if not router_link:
         client_node = node1 if node1 in clients else node2
-        tc_info[client_node] = (bw, loss_percentage, delay, buffer)
+        tc_info[client_node] = (bw, loss_percentage, delay, buffer, multicast)
 
         server_node = node1 if node1 in servers else node2
-        tc_info[server_node] = (bw, loss_percentage, delay, buffer)
+        tc_info[server_node] = (bw, loss_percentage, delay, buffer, multicast)
 
     if verbose:
         print(
-            f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}, Delay: {delay}, Buffer: {buffer}"
+            f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}, Delay: {delay}, Buffer: {buffer}, Multicast: {multicast}"
         )
     return link_ctr, tc_info, ips
 
@@ -275,33 +306,43 @@ def main():
 
         conf = topo.get_conf(router)
 
+
+        conf.glb.isis.set_id(id + 1)
+        conf.glb.ip.forward()
+
+        # check if the router must have multicast enabled or disabled
         multicast_enabled = (
             router_overrides[router]["multicast"]
             if router in router_overrides
             else default_multicast_enabled
         )
-
+ 
         if multicast_enabled:
             conf.glb.pim.set_use_asm(True)
             conf.glb.pim.set_rp_priority(id)
             conf.glb.pim.set_asm_prefix(IPv4Network("224.0.0.0/4"))
-
-        conf.glb.isis.set_id(id + 1)
-        conf.glb.ip.forward()
 
         # enable isis and pim on loopback
         lo_conf = conf.get_interface("lo")
         lo_conf.isis.enable()
         lo_conf.isis.set_passive()
 
+        # enable pim on the loopback interface if this router has multicast enabled
         if multicast_enabled:
             lo_conf.pim.enable()
 
-        for itf, _ in topo.get_itfs(router):
+        for itf, info in topo.get_itfs(router):
             itf_conf = conf.get_interface(itf)
             itf_conf.isis.enable()
+            
+            # multicast is enabled on this interface if info["multicast"] is True, if it's undefined, then we use the default value (True)
+            itf_mcast_enabled = (
+                info["multicast"]
+                if "multicast" in info
+                else default_multicast_enabled_link
+            )
 
-            if multicast_enabled:
+            if itf_mcast_enabled:
                 itf_conf.pim.enable()
 
     if args.mode == "setup":
@@ -312,9 +353,10 @@ def main():
         print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tmulticast")
 
         for node, ip in ips.items():
-            bw, loss, delay, buffer = "n/a\t", "n/a", "n/a", "n/a"
+            bw, loss, delay, buffer, multicast = "n/a\t", "n/a", "n/a", "n/a", "n/a"
             if node in tc_info:
-                bw, loss, delay, buffer = tc_info[node]
+                bw, loss, delay, buffer, multicast = tc_info[node]
+                
             if node in routers_list:
                 multicast_enabled = (
                     router_overrides[node]["multicast"]
@@ -323,7 +365,7 @@ def main():
                 )
                 print(f"{node}\t\t{ip}\tn/a\tn/a\tn/a\tn/a\t{multicast_enabled}")
             else:
-                print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}\tn/a")
+                print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}\t{multicast}")
 
     else:
         topo.teardown()

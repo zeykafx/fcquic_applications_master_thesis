@@ -86,6 +86,9 @@ class Topology:
     def set_burst_percentage(self, node1, node2, percentage):
         self._set_link_property(node1, node2, "burst_percentage", percentage)
 
+    def set_multicast_enabled(self, node1, node2, multicast):
+        self._set_link_property(node1, node2, "multicast", multicast)
+
     def get_itfs(self, node: str):
         itfs = []
         for _, _, info in self.graph.edges(node, data=True):
