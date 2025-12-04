@@ -225,7 +225,7 @@ def configure_link(
 
     if verbose:
         print(
-            f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}"
+            f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}, Delay: {delay}, Buffer: {buffer}"
         )
     return link_ctr, tc_info, ips
 
@@ -309,13 +309,21 @@ def main():
         print("Topology running")
         print()
         print("Hosts")
-        print("Name\t\tIP\t\tBW\t\tLOSS\tDELAY\tBUFFER SIZE")
+        print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tmulticast")
 
         for node, ip in ips.items():
             bw, loss, delay, buffer = "n/a\t", "n/a", "n/a", "n/a"
             if node in tc_info:
                 bw, loss, delay, buffer = tc_info[node]
-            print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}")
+            if node in routers_list:
+                multicast_enabled = (
+                    router_overrides[node]["multicast"]
+                    if node in router_overrides
+                    else default_multicast_enabled
+                )
+                print(f"{node}\t\t{ip}\tn/a\tn/a\tn/a\tn/a\t{multicast_enabled}")
+            else:
+                print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}\tn/a")
 
     else:
         topo.teardown()
