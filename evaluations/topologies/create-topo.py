@@ -22,6 +22,8 @@ default_delay = "1ms"
 default_buffer = 1000  # buffer size in packets
 default_loss = "0%"
 default_loss_burst_percentage = "10%"
+default_rp_id = 1
+default_asm_prefix = "224.0.0.0/4"
 router_overrides = {}
 
 
@@ -88,7 +90,9 @@ def parse_defaults(defaults: dict):
         default_buffer, \
         default_delay, \
         default_loss, \
-        default_loss_burst_percentage
+        default_loss_burst_percentage, \
+        default_multicast_enabled_link
+
     if "routers" in defaults and "multicast" in defaults["routers"]:
         default_multicast_enabled = defaults["routers"]["multicast"]
 
@@ -103,6 +107,9 @@ def parse_defaults(defaults: dict):
             default_delay = defaults["links"]["delay"]
         if "buffer" in defaults["links"]:
             default_buffer = defaults["links"]["buffer"]
+
+        if "multicast" in defaults["links"]:
+            default_multicast_enabled_link = defaults["links"]["multicast"]
 
 
 def parse_routers(routers, topo: Topology, ips, tc_info):
@@ -125,7 +132,6 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
     else:
         # {'num': 3, 'overrides': {'router1': {'multicast': False}}, 'links': [{'endpoints': ['router1', 'router2']}, {'endpoints': ['router1', 'router3']}, {'endpoints': ['router2', 'router3']}]}
 
-        
         # We can specify how many routers we want
         # e.g., "num: 4" will result in router1, router2, router3, and router4 to be created
         if "num" in routers:
@@ -140,7 +146,7 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
                 lo_ip = IPv4Address(f"10.255.1.{id}")
                 ips[router] = lo_ip
                 topo.set_loopback(router, lo_ip, 32)
-                
+
         elif "list" in routers:
             # if "num" is not specified, then we can have a list of router names under the "list" key
             # ["router1", "router2"]
@@ -148,7 +154,7 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
                 routers_list.append(router)
                 if verbose:
                     print(f"Adding router: {router} (id: {id})")
-    
+
                 topo.add_node(router, router=True)
                 lo_ip = IPv4Address(f"10.255.1.{id}")
                 ips[router] = lo_ip
@@ -166,7 +172,7 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
                 router_links, _, _ = configure_link(
                     link, router_links, {}, {}, [], [], [], topo, router_link=True
                 )
-        
+
     return routers_list, ips, tc_info
 
 
@@ -300,12 +306,14 @@ def main():
         )
 
     # setup the routers' interfaces
-    for id, router in enumerate(routers_list):
+    for r_id, router in enumerate(routers_list):
+        id = (
+            r_id + 1
+        )  # since the router ids go from 1 to n, here enumerate starts at 0 so we must increase by 1 to get what we expect
         if verbose:
-            print(f"Setting up router: {router}")
+            print(f"Setting up router: {router}, id {id}")
 
         conf = topo.get_conf(router)
-
 
         conf.glb.isis.set_id(id + 1)
         conf.glb.ip.forward()
@@ -316,11 +324,22 @@ def main():
             if router in router_overrides
             else default_multicast_enabled
         )
- 
+
         if multicast_enabled:
+            # note: highest bsr priority wins
+            # but lowest rp priority wins
+            bsr_priority = id
+            rp_priority = id + 100
+
+            if default_rp_id == id:
+                bsr_priority = id + 100  # highest wins
+                rp_priority = 0  # lowest wins
+
             conf.glb.pim.set_use_asm(True)
-            conf.glb.pim.set_rp_priority(id)
-            conf.glb.pim.set_asm_prefix(IPv4Network("224.0.0.0/4"))
+            conf.glb.pim.set_bsr_priority(bsr_priority)
+            conf.glb.pim.set_rp_priority(rp_priority)
+
+            conf.glb.pim.set_asm_prefix(IPv4Network(default_asm_prefix))
 
         # enable isis and pim on loopback
         lo_conf = conf.get_interface("lo")
@@ -334,7 +353,7 @@ def main():
         for itf, info in topo.get_itfs(router):
             itf_conf = conf.get_interface(itf)
             itf_conf.isis.enable()
-            
+
             # multicast is enabled on this interface if info["multicast"] is True, if it's undefined, then we use the default value (True)
             itf_mcast_enabled = (
                 info["multicast"]
@@ -349,14 +368,14 @@ def main():
         topo.run()
         print("Topology running")
         print()
-        print("Hosts")
+        print(f"RP/BSR Router ID: {default_rp_id}")
         print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tmulticast")
 
         for node, ip in ips.items():
             bw, loss, delay, buffer, multicast = "n/a\t", "n/a", "n/a", "n/a", "n/a"
             if node in tc_info:
                 bw, loss, delay, buffer, multicast = tc_info[node]
-                
+
             if node in routers_list:
                 multicast_enabled = (
                     router_overrides[node]["multicast"]

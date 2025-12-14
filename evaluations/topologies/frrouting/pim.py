@@ -1,10 +1,13 @@
 from ipaddress import IPv4Network
 
+
+
 class PimGlobal:
     def __init__(self):
         self.ssm_range = None
         self.use_asm = False
         self.rp_priority = None
+        self.bsr_priority = None
         self.asm_prefix = None
 
     def set_use_asm(self, use_asm: bool):
@@ -15,6 +18,9 @@ class PimGlobal:
 
     def set_rp_priority(self, priority: int):
         self.rp_priority = priority
+
+    def set_bsr_priority(self, priority: int):
+        self.bsr_priority = priority
 
     def set_ssm_range(self, range: IPv4Network):
         self.ssm_range = range
@@ -28,7 +34,7 @@ class PimGlobal:
             s += "router pim\n"
             if self.use_asm:
                 s += f"  bsr candidate-rp priority {self.rp_priority}\n"
-                s += f"  bsr candidate-bsr priority {self.rp_priority}\n"
+                s += f"  bsr candidate-bsr priority {self.bsr_priority}\n"
                 s += f"  bsr candidate-rp group {self.asm_prefix}\n"
             else:
                 s += "  ssm prefix-list multicast\n"
