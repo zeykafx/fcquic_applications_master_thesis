@@ -133,10 +133,10 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
         # {'num': 3, 'overrides': {'router1': {'multicast': False}}, 'links': [{'endpoints': ['router1', 'router2']}, {'endpoints': ['router1', 'router3']}, {'endpoints': ['router2', 'router3']}]}
 
         # We can specify how many routers we want
-        # e.g., "num: 4" will result in router1, router2, router3, and router4 to be created
+        # e.g., "num: 4" will result in r1, r2, r3, and r4 to be created
         if "num" in routers:
             for id in range(1, routers["num"] + 1):
-                router = f"router{id}"
+                router = f"r{id}"  # Note: don't use router{id} because that can be too long for the interface names
                 routers_list.append(router)
 
                 if verbose:
@@ -191,7 +191,7 @@ def parse_clients(clients, topo: Topology):
                 client = f"client{id}"
                 clients_list.append(client)
                 if verbose:
-                    print(f"Adding client {client}")
+                    print(f"Adding client {client} (id: {id})")
 
                 topo.add_node(client)
     return clients_list
@@ -262,7 +262,7 @@ def configure_link(
 
     if verbose:
         print(
-            f"Adding link: {node1} <-> {node2}, Network: {network}, Bandwidth: {bw}, Loss: {loss_percentage}, Delay: {delay}, Buffer: {buffer}, Multicast: {multicast}"
+            f"Adding link: {node1} <-> {node2}, Network: {network}, bw: {bw}, loss: {loss_percentage}, delay: {delay}, buf: {buffer}, pim: {multicast}"
         )
     return link_ctr, tc_info, ips
 
@@ -273,6 +273,7 @@ def main():
     parser.add_argument("config_path", type=file_path)
     parser.add_argument("mode", choices=["setup", "teardown"])
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-d", "--draw", action="store_true")
 
     args = parser.parse_args()
     verbose = args.verbose
@@ -280,6 +281,10 @@ def main():
     conf_file = args.config_path
 
     defaults, routers, servers, clients, links = parse_config_file(conf_file)
+
+    draw_diagram = args.draw
+    config_dir = os.path.dirname(conf_file)
+    diagram_filename = os.path.join(config_dir, "diagram")
 
     parse_defaults(defaults)
 
@@ -311,7 +316,7 @@ def main():
             r_id + 1
         )  # since the router ids go from 1 to n, here enumerate starts at 0 so we must increase by 1 to get what we expect
         if verbose:
-            print(f"Setting up router: {router}, id {id}")
+            print(f"Setting up router: {router} (id {id})")
 
         conf = topo.get_conf(router)
 
@@ -366,6 +371,10 @@ def main():
 
     if args.mode == "setup":
         topo.run()
+        if draw_diagram:
+            topo.draw_diagram(diagram_filename)
+            print(f"Topology diagram generated: {diagram_filename}.gv.svg")
+            
         print("Topology running")
         print()
         print(f"RP/BSR Router ID: {default_rp_id}")

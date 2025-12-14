@@ -3,7 +3,13 @@ import shutil
 import subprocess
 from ipaddress import IPv4Address, IPv4Network
 
+import graphviz
 import networkx as nx
+
+# from diagrams import Diagram
+# from diagrams.generic.compute import Rack
+# from diagrams.generic.device import Mobile
+# from diagrams.generic.network import Router
 from frrouting import FRRouting
 
 
@@ -106,6 +112,87 @@ class Topology:
     def get_conf(self, node: str) -> FRRouting:
         return self.graph.nodes(data=True)[node]["conf"]
 
+    def _get_node_ip(self, node: str):
+        edges = list(self.graph.edges(node, data=True))
+        if edges:
+            _, _, info = edges[0]
+            if "ip" in info:
+                return str(info["ip"])
+        return None
+
+    def _has_multicast_disabled(self, node: str):
+        for _, _, info in self.graph.edges(node, data=True):
+            
+            if info.get("multicast") is False:
+                return True
+        return False
+
+    def draw_diagram(self, filename="diagram"):
+        # graph is used because it's bidirectional links
+        dot = graphviz.Graph(filename, format="svg", engine="neato")
+        dot.attr(overlap="scale", splines="true", sep="+5", esep="+5")
+
+        for node in self.graph.nodes:
+            # check if node has multicast disabled on any link
+            multicast_disabled = self._has_multicast_disabled(node)
+
+            if self._is_router(node):
+                # when disabling multicast for a router, the pim router section will not has "use_asm" set to true
+                multicast_disabled = not self.get_conf(node).glb.pim.use_asm
+                fillcolor = "lightcoral" if multicast_disabled else "lightblue"
+                dot.node(
+                    node, node, shape="circle", style="filled", fillcolor=fillcolor
+                )
+            elif node.startswith("source") or node.startswith("server"):
+                # server
+                ip = self._get_node_ip(node)
+                label = f"{node}\n{ip}" if ip else node
+                fillcolor = "lightcoral" if multicast_disabled else "lightgreen"
+                dot.node(node, label, shape="box", style="filled", fillcolor=fillcolor)
+            else:
+                # Client
+                ip = self._get_node_ip(node)
+                label = f"{node}\n{ip}" if ip else node
+                fillcolor = "lightyellow"
+                dot.node(
+                    node, label, shape="ellipse", style="filled", fillcolor=fillcolor
+                )
+
+        drawn_edges = set()
+        for node1, node2, info in self.graph.edges(data=True):
+            edge_key = tuple(sorted([node1, node2]))
+            if edge_key not in drawn_edges:
+                drawn_edges.add(edge_key)
+                # check if multicast is disabled on this link
+                multicast_disabled = info.get("multicast") is False
+                color = "red" if multicast_disabled else "black"
+                penwidth = "2.0" if multicast_disabled else "1.0"
+                dot.edge(node1, node2, color=color, penwidth=penwidth)
+
+        dot.render(cleanup=True)
+
+    # def draw_diagram(self, filename="diagram.svg"):
+    #     with Diagram(filename, show=False):
+    #         # Create node objects for the diagram
+    #         diagram_nodes = {}
+
+    #         for node in self.graph.nodes:
+    #             if self._is_router(node):
+    #                 diagram_nodes[node] = Router(node)
+    #             elif node.startswith("source") or node.startswith("server"):
+    #                 diagram_nodes[node] = Rack(node)
+    #             else:
+    #                 # Assume it's a client
+    #                 diagram_nodes[node] = Mobile(node)
+
+    #         # Draw edges (only once per link, since graph is directed)
+    #         drawn_edges = set()
+    #         for node1, node2, info in self.graph.edges(data=True):
+    #             edge_key = tuple(sorted([node1, node2]))
+    #             if edge_key not in drawn_edges:
+    #                 drawn_edges.add(edge_key)
+    #                 diagram_nodes[node1] >> diagram_nodes[node2]
+
     def _create_node(self, node: str):
         subprocess.run(["ip", "netns", "add", f"{node}"])
         subprocess.run(
@@ -172,9 +259,9 @@ class Topology:
                 )
 
     def _set_netem(self, node, data):
-        delay = data.get("delay", "1ms")
+        delay = data.get("delay", "0ms")
         bw = data.get("bw", "100Mbit")
-        limit = str(data.get("limit", "1000"))
+        limit = str(data.get("limit", "10000"))
         codel = data.get("codel", False)
         loss_percentage = data.get("loss_percentage", "0%")
         burst_percentage = data.get("burst_percentage", "25%")

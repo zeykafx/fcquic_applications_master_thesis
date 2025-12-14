@@ -1,0 +1,83 @@
+# Note: This script was inspired by the evaluation script from Anthony Doeraene and NPF's documentation
+
+%info
+FCQUIC App Latency test
+
+
+%config
+n_runs=1
+timeout=3600
+
+%late_variables
+RELEASE_MODE=true
+WORKDIR=$(pwd)
+TOPO_FILE="$WORKDIR/topologies/configs/latency/topo.yaml"
+
+%variables
+fallback_delay=100
+
+%init
+# ------------------------ Building App ------------------------
+cd $WORKDIR
+cd ../fcquic_chat
+
+if [ "$RELEASE_MODE" = true ]; then
+    echo "building all in release mode"
+    cargo build --release > /dev/null 2> /dev/null
+
+    cp ./target/release/server $WORKDIR/tests/latency/server
+    cp ./target/release/client $WORKDIR/tests/latency/client
+else
+    echo "building all in debug mode"
+    cargo build > /dev/null 2> /dev/null
+
+    cp ./target/debug/server $WORKDIR/tests/latency/server
+    cp ./target/debug/client $WORKDIR/tests/latency/client
+fi
+
+
+
+# ------------------------ Topology Setup ------------------------
+%script@topology autokill=false
+cd $WORKDIR/topologies
+
+python3 ./create-topo.py $TOPO_FILE setup
+
+converged=false
+while [ $converged=false ]; do
+    # code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf#L74
+    ping_res=$(ip netns exec client1 ping 10.10.0.2 -i 0.1 -c 5)
+    errors=$(echo "$ping_res" | grep 'error')
+    losses=$(echo "$ping_res" | grep 'packet loss' | cut -f6 -d' ')
+    losses=${losses%\%}
+    if [ -z "$errors" -a "$losses" -lt 5 ]; then
+        converged=true
+    else
+        echo "Waiting for convergence"
+    fi
+done
+
+echo "Topology setup and IS-IS converged"
+echo "EVENT topo-setup"
+
+# ------------------------ SERVER ------------------------
+# Wait for the topology setup event to fire
+%script@server waitfor=topo-setup
+
+cd $WORKDIR/tests/latency
+
+sudo ip netns exec server1 server \
+ --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --flexicast \
+ --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $fallback_delay --unicast
+
+echo "EVENT server-up"
+
+
+# ------------------------ CLIENTS ------------------------
+%script@server waitfor=server-up autokill=false
+
+cd $WORKDIR/tests/Latency
+
+
+sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./target/debug/client https://10.10.0.2:4433 \
+-l 10.10.${CLIENT_ID}.2 --flexicast -u Client${CLIENT_ID}  2>&1 | tee $LOG_FILENAME

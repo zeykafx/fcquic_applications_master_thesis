@@ -12,4 +12,5 @@ sudp apt update && sudo apt install frr frr-pythontools
 
 # Don't forget to run `sudo modprobe sch_netem` before running the topologies
 
-sudo pip3 install npf
+# pip3 install --user npf
+pip install --user npf --break-system-packages # yes yes this is bad i know
