@@ -273,7 +273,8 @@ def main():
     parser.add_argument("config_path", type=file_path)
     parser.add_argument("mode", choices=["setup", "teardown"])
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("-d", "--draw", action="store_true")
+    parser.add_argument("-d", "--draw", action="store_true", help="Outputs an svg diagram representing the topology")
+    parser.add_argument("--preview", action="store_true", help="Create the topology but don't run it, useful to check syntax or diagram")
 
     args = parser.parse_args()
     verbose = args.verbose
@@ -370,15 +371,19 @@ def main():
                 itf_conf.pim.enable()
 
     if args.mode == "setup":
-        topo.run()
         if draw_diagram:
             topo.draw_diagram(diagram_filename)
             print(f"Topology diagram generated: {diagram_filename}.gv.svg")
+
+        
+        if not args.preview:
+            topo.run()
+            print("Topology running")
             
-        print("Topology running")
         print()
+
         print(f"RP/BSR Router ID: {default_rp_id}")
-        print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tmulticast")
+        print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tMulticast")
 
         for node, ip in ips.items():
             bw, loss, delay, buffer, multicast = "n/a\t", "n/a", "n/a", "n/a", "n/a"

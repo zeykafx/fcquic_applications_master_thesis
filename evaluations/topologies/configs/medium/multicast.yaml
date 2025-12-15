@@ -22,6 +22,7 @@ topology:
         links:
             - endpoints: ["r1", "r2"]
             - endpoints: ["r1", "r3"]
+              multicast: false
             - endpoints: ["r2", "r3"]
 
     servers: ["server1"]
@@ -32,6 +33,7 @@ topology:
         - endpoints: ["r1", "server1"]
         - endpoints: ["r1", "client1"]
         - endpoints: ["r2", "client2"]
-          # delay: "100ms"
+          delay: "100ms"
+          loss: 10%
         - endpoints: ["r3", "client3"]
           multicast: false

@@ -35,7 +35,7 @@ topology:
 
     servers: ["server1"]
     clients:
-        num: 1
+        num: 20
 
     links:
         - endpoints: ["r1", "server1"]
@@ -44,6 +44,7 @@ topology:
         - endpoints: ["r2", "client3"]
         - endpoints: ["r2", "client4"]
         - endpoints: ["r3", "client5"]
+          loss: "10%"
         - endpoints: ["r3", "client6"]
         - endpoints: ["r4", "client7"]
         - endpoints: ["r4", "client8"]

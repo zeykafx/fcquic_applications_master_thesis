@@ -5,11 +5,6 @@ from ipaddress import IPv4Address, IPv4Network
 
 import graphviz
 import networkx as nx
-
-# from diagrams import Diagram
-# from diagrams.generic.compute import Rack
-# from diagrams.generic.device import Mobile
-# from diagrams.generic.network import Router
 from frrouting import FRRouting
 
 
@@ -122,7 +117,7 @@ class Topology:
 
     def _has_multicast_disabled(self, node: str):
         for _, _, info in self.graph.edges(node, data=True):
-            
+
             if info.get("multicast") is False:
                 return True
         return False
@@ -130,7 +125,7 @@ class Topology:
     def draw_diagram(self, filename="diagram"):
         # graph is used because it's bidirectional links
         dot = graphviz.Graph(filename, format="svg", engine="neato")
-        dot.attr(overlap="scale", splines="true", sep="+5", esep="+5")
+        dot.attr(overlap="vpsc", splines="true", sep="+30", esep="+5", normalize="0")
 
         for node in self.graph.nodes:
             # check if node has multicast disabled on any link
@@ -167,31 +162,23 @@ class Topology:
                 multicast_disabled = info.get("multicast") is False
                 color = "red" if multicast_disabled else "black"
                 penwidth = "2.0" if multicast_disabled else "1.0"
-                dot.edge(node1, node2, color=color, penwidth=penwidth)
-
+                
+                # display loss rate and the delay on the label if it's higher than 0% and 0ms
+                loss_rate = info.get("loss_percentage")
+                delay = info.get("delay")
+                loss_str = loss_rate if loss_rate != "0%" else ""
+                delay_str = delay if delay != "0ms" else ""
+                label_str = f"{loss_str}\n{delay_str}"
+                dot.edge(
+                    node1,
+                    node2,
+                    color=color,
+                    penwidth=penwidth,
+                    headlabel=label_str,
+                    labeldistance="3.0",
+                    labelfontsize="15",
+                )
         dot.render(cleanup=True)
-
-    # def draw_diagram(self, filename="diagram.svg"):
-    #     with Diagram(filename, show=False):
-    #         # Create node objects for the diagram
-    #         diagram_nodes = {}
-
-    #         for node in self.graph.nodes:
-    #             if self._is_router(node):
-    #                 diagram_nodes[node] = Router(node)
-    #             elif node.startswith("source") or node.startswith("server"):
-    #                 diagram_nodes[node] = Rack(node)
-    #             else:
-    #                 # Assume it's a client
-    #                 diagram_nodes[node] = Mobile(node)
-
-    #         # Draw edges (only once per link, since graph is directed)
-    #         drawn_edges = set()
-    #         for node1, node2, info in self.graph.edges(data=True):
-    #             edge_key = tuple(sorted([node1, node2]))
-    #             if edge_key not in drawn_edges:
-    #                 drawn_edges.add(edge_key)
-    #                 diagram_nodes[node1] >> diagram_nodes[node2]
 
     def _create_node(self, node: str):
         subprocess.run(["ip", "netns", "add", f"{node}"])

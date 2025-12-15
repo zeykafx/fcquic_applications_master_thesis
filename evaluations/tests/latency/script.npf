@@ -12,9 +12,12 @@ timeout=3600
 RELEASE_MODE=true
 WORKDIR=$(pwd)
 TOPO_FILE="$WORKDIR/topologies/configs/latency/topo.yaml"
+connection_sleep_length=2 # seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
 
 %variables
 fallback_delay=100
+num_clients=20
+test_length=30 # in seconds
 
 %init
 # ------------------------ Building App ------------------------
@@ -34,7 +37,6 @@ else
     cp ./target/debug/server $WORKDIR/tests/latency/server
     cp ./target/debug/client $WORKDIR/tests/latency/client
 fi
-
 
 
 # ------------------------ Topology Setup ------------------------
@@ -74,10 +76,30 @@ echo "EVENT server-up"
 
 
 # ------------------------ CLIENTS ------------------------
-%script@server waitfor=server-up autokill=false
+%script@server waitfor=server-up delay=1 autokill=false
 
 cd $WORKDIR/tests/Latency
+mkdir logs
+
+pids=()
+for CLIENT_ID in $(seq $num_clients); do 
+    # run the client app in the client namespace
+    # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log
+    client_sender_arg=""
+    if [ "$CLIENT_ID" == "1" ]; then
+        client_sender_arg="--sender"
+    fi
+    ip netns exec client${CLIENT_ID} client https://10.10.0.2:4433 \
+    -l 10.10.${CLIENT_ID}.2 --flexicast -u Client${CLIENT_ID} --length $test_length --test-mode ${client_test_args} --connection_sleep_length ${connection_sleep_length} < /dev/nul 2> logs/client${CLIENT_ID}.log & 
+    
+    # store the pid of this client into the pids set
+    pids[${CLIENT_ID}]=$!
+done
 
 
-sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./target/debug/client https://10.10.0.2:4433 \
--l 10.10.${CLIENT_ID}.2 --flexicast -u Client${CLIENT_ID}  2>&1 | tee $LOG_FILENAME
+# wait for all clients to finish
+for pid in ${pids[*]}; do
+    wait $pid
+done
+
+echo "EVENT clients-done" 
