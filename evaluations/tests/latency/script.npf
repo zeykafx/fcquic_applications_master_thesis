@@ -14,14 +14,17 @@ release_mode=true
 connection_sleep_length=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
 
 %variables
-fallback_delay=100
-num_clients=20
-test_length=30 // in seconds
+FALLBACK_DELAY=100
+NUM_CLIENTS=20
+INTERVAL=1000 // ms
+TEST_LENGTH=30 // in seconds
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
 
 %init
 // ------------------------ Building App ------------------------
+
+
 cd $workdir
 cd fcquic_chat
 
@@ -83,12 +86,13 @@ echo "EVENT topo-setup"
 
 cd $workdir/evaluations/tests/latency
 mkdir logs 2> /dev/null
+mkdir logs/qlog 2> /dev/null
 
 echo "Starting server"
 
-sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/server \
+sudo ip netns exec server1 env QLOGDIR=./logs/qlog RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/server \
  --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --flexicast \
- --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $fallback_delay --unicast > logs/server.log  2>&1 &
+ --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $FALLBACK_DELAY --unicast > logs/server.log  2>&1 &
 
 echo "Server running!"
 
@@ -103,16 +107,17 @@ cd $workdir/evaluations/tests/latency
 
 echo "Starting clients"
 pids=()
-for CLIENT_ID in $(seq $num_clients); do
+for CLIENT_ID in $(seq $NUM_CLIENTS); do
 		echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
-    client_sender_arg=""
+    CLIENT_SENDER_ARG=""
     if [ "$CLIENT_ID" == "1" ]; then
-        client_sender_arg="--sender"
+    		echo "client${CLIENT_ID} is the sender"
+        CLIENT_SENDER_ARG="--sender"
     fi
-    sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
-    -l 10.10.${CLIENT_ID}.2 --flexicast -u Client${CLIENT_ID} --length $test_length --test-mode ${client_sender_arg} --conn-sleep-length ${connection_sleep_length} < /dev/null 2> logs/client${CLIENT_ID}.log  &
+    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=./logs/qlog RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
+    -l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode ${CLIENT_SENDER_ARG} --conn-sleep-length ${connection_sleep_length} --interval ${INTERVAL} < /dev/null 2> logs/client${CLIENT_ID}.log  &
 
     # store the pid of this client into the pids set
 
