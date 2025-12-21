@@ -24,6 +24,7 @@ default_loss = "0%"
 default_loss_burst_percentage = "10%"
 default_rp_id = 1
 default_asm_prefix = "224.0.0.0/4"
+default_router_name_prefix = "r"
 router_overrides = {}
 
 
@@ -91,10 +92,19 @@ def parse_defaults(defaults: dict):
         default_delay, \
         default_loss, \
         default_loss_burst_percentage, \
-        default_multicast_enabled_link
-
-    if "routers" in defaults and "multicast" in defaults["routers"]:
-        default_multicast_enabled = defaults["routers"]["multicast"]
+        default_multicast_enabled_link, \
+        default_rp_id, \
+        default_asm_prefix, \
+        default_router_name_prefix
+    if "routers" in defaults:
+        if "multicast" in defaults["routers"]:
+            default_multicast_enabled = defaults["routers"]["multicast"]
+        if "rp_id" in defaults["routers"]:
+            default_rp_id = defaults["routers"]["rp_id"]
+        if "asm_prefix" in defaults["routers"]:
+            default_asm_prefix = defaults["routers"]["asm_prefix"]
+        if "name_prefix" in defaults["routers"]:
+            default_router_name_prefix = defaults["routers"]["name_prefix"]
 
     if "links" in defaults:
         if "bandwidth" in defaults["links"]:
@@ -116,7 +126,6 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
     # collect the router ids in a list and return it
     routers_list = []
 
-    # TODO: define router links in this case
     if type(routers) is list:
         # ['router1', 'router2', 'router3']
         for id, router in enumerate(routers):
@@ -136,7 +145,8 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
         # e.g., "num: 4" will result in r1, r2, r3, and r4 to be created
         if "num" in routers:
             for id in range(1, routers["num"] + 1):
-                router = f"r{id}"  # Note: don't use router{id} because that can be too long for the interface names
+                # Note: don't use "router{id}" because that can make the interface name too long, i now use "r{id}"
+                router = f"{default_router_name_prefix}{id}"
                 routers_list.append(router)
 
                 if verbose:

@@ -14,16 +14,17 @@ release_mode=true
 connection_sleep_length=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
 
 %variables
+NUM_CLIENTS=4
+TOPO_CONF_NAME="medium"
 FALLBACK_DELAY=100
-NUM_CLIENTS=20
 INTERVAL=1000 // ms
-TEST_LENGTH=30 // in seconds
+TEST_LENGTH=90 // in seconds
+PER_CLIENT_LAT_RESULTS=false
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
 
 %init
 // ------------------------ Building App ------------------------
-
 
 cd $workdir
 cd fcquic_chat
@@ -33,7 +34,7 @@ mkdir $workdir/evaluations/tests/latency/bin
 
 echo "Building project"
 
-if [ "$release_mode" == "true" ]; then
+if [ "$release_mode" = "true" ]; then
     echo "building all in release mode"
     $cargo_path build --release
 
@@ -59,11 +60,12 @@ cd $workdir/evaluations/topologies
 
 echo "Setting up the topology"
 
-sudo python3 ./create-topo.py ./configs/latency/topo.yaml setup
+sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml setup
 
 echo "Set up topologies, now waiting for convergence"
 
 # code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
+
 converged=false
 while [ $converged != "true" ]; do
     ping_res=$(ip netns exec client1 ping 10.10.0.2 -i 0.1 -c 5)
@@ -76,6 +78,8 @@ while [ $converged != "true" ]; do
         echo "Waiting for convergence"
     fi
 done
+
+sleep 5
 
 echo "Topology setup and IS-IS converged"
 echo "EVENT topo-setup"
@@ -98,7 +102,9 @@ echo "Server running!"
 
 echo "EVENT server-up"
 
-sleep 60
+SLEEP_LENGTH_SERVER=$(echo "1.5*${TEST_LENGTH}" | bc)
+echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
+sleep ${SLEEP_LENGTH_SERVER}
 
 // ------------------------ CLIENTS ------------------------
 %script@client waitfor=server-up delay=1
@@ -111,23 +117,29 @@ for CLIENT_ID in $(seq $NUM_CLIENTS); do
 		echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
-    CLIENT_SENDER_ARG=""
-    if [ "$CLIENT_ID" == "1" ]; then
+    CLIENT_ARGS=""
+    if [ "$CLIENT_ID" = "1" ]; then
     		echo "client${CLIENT_ID} is the sender"
-        CLIENT_SENDER_ARG="--sender"
+        CLIENT_ARGS="--sender"
     fi
+
+    if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
+   		CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
+    fi
+
     sudo ip netns exec client${CLIENT_ID} env QLOGDIR=./logs/qlog RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
-    -l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode ${CLIENT_SENDER_ARG} --conn-sleep-length ${connection_sleep_length} --interval ${INTERVAL} < /dev/null 2> logs/client${CLIENT_ID}.log  &
+			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
+			--interval ${INTERVAL} < /dev/null 2> logs/client${CLIENT_ID}.log  &
 
     # store the pid of this client into the pids set
-
     pids[${CLIENT_ID}]=$!
 done
 
 
 echo "All clients started"
 
-// wait for all clients to finish
+# wait for all clients to finish
 for pid in ${pids[*]}; do
     wait $pid
 done

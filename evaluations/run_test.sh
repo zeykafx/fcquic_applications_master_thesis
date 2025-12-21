@@ -3,8 +3,7 @@ CARGO_PATH=$(which cargo)
 # NUM_CLIENTS=20
 # RESULT_VARS=""
 
-sudo pkill -f "sudo ip netns exec client"
-sudo pkill -f "sudo ip netns exec server"
+sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
 
 # for CLIENT_ID in $(seq $NUM_CLIENTS); do
 # 	RESULT_VARS="LATENCY-CLIENT${CLIENT_ID},${RESULT_VARS}"
@@ -20,4 +19,6 @@ sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
     --no-graph --force-retest \
     --variables workdir=$(pwd)/.. \
     cargo_path=$CARGO_PATH \
-    num_clients=${NUM_CLIENTS}
+    $@
+    
+# The line "$@" allows us to pass the remaning arguments from this script to the npf script
