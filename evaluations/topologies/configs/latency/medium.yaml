@@ -2,7 +2,7 @@ topology:
     defaults:
         routers:
             multicast: true
-            rp_id: 1
+            rp_id: 3
             asm_prefix: "224.0.0.0/4"
             name_prefix: "r"
 
@@ -10,7 +10,7 @@ topology:
             bandwidth: "30Mbit"
             loss: "0%"
             burst: "0%"
-            delay: "0ms"
+            delay: "3ms"
             buffer: 100000
             multicast: true
 

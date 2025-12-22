@@ -5,6 +5,9 @@ CARGO_PATH=$(which cargo)
 
 sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
 
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_default=26214400
+
 # for CLIENT_ID in $(seq $NUM_CLIENTS); do
 # 	RESULT_VARS="LATENCY-CLIENT${CLIENT_ID},${RESULT_VARS}"
 # done

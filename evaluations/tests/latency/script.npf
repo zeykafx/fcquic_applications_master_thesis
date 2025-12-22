@@ -18,7 +18,7 @@ NUM_CLIENTS=4
 TOPO_CONF_NAME="medium"
 FALLBACK_DELAY=100
 INTERVAL=1000 // ms
-TEST_LENGTH=90 // in seconds
+TEST_LENGTH=60 // in seconds
 PER_CLIENT_LAT_RESULTS=false
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
@@ -66,9 +66,12 @@ echo "Set up topologies, now waiting for convergence"
 
 # code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
 
+CLIENT_ID_CONVERGENCE_TEST=$(echo ${NUM_CLIENTS} - 1 | bc)
+echo "Testing convergence from client${CLIENT_ID_CONVERGENCE_TEST}"
+
 converged=false
 while [ $converged != "true" ]; do
-    ping_res=$(ip netns exec client1 ping 10.10.0.2 -i 0.1 -c 5)
+    ping_res=$(ip netns exec client${CLIENT_ID_CONVERGENCE_TEST} ping 10.10.0.2 -i 0.1 -c 5)
     errors=$(echo "$ping_res" | grep 'error')
     losses=$(echo "$ping_res" | grep 'packet loss' | cut -f6 -d' ')
     losses=${losses%\%}
@@ -79,9 +82,10 @@ while [ $converged != "true" ]; do
     fi
 done
 
+echo "Topology setup and IS-IS converged"
+
 sleep 5
 
-echo "Topology setup and IS-IS converged"
 echo "EVENT topo-setup"
 
 // ------------------------ SERVER ------------------------
@@ -102,7 +106,7 @@ echo "Server running!"
 
 echo "EVENT server-up"
 
-SLEEP_LENGTH_SERVER=$(echo "1.5*${TEST_LENGTH}" | bc)
+SLEEP_LENGTH_SERVER=$(echo "20+${TEST_LENGTH}" | bc)
 echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 
