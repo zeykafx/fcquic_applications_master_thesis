@@ -18,7 +18,7 @@ NUM_CLIENTS=4
 TOPO_CONF_NAME="medium"
 FALLBACK_DELAY=100
 INTERVAL=1000 // ms
-TEST_LENGTH=60 // in seconds
+TEST_LENGTH=30 // in seconds
 PER_CLIENT_LAT_RESULTS=false
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
@@ -93,14 +93,27 @@ echo "EVENT topo-setup"
 %script@server waitfor=topo-setup
 
 cd $workdir/evaluations/tests/latency
-mkdir logs 2> /dev/null
-mkdir logs/qlog 2> /dev/null
+
+mkdir ./logs 2> /dev/null
+# mkdir logs/qlog 2> /dev/null
+
+LOG_DIR=./logs
+
+PREV_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+PREV_RUN_NBR=${PREV_RUN_NBR:-0}
+CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
+
+QLOG_DIR=${LOG_DIR}/${CUR_RUN}
+mkdir ${QLOG_DIR}
+
+LOG_FILENAME=${LOG_DIR}/${CUR_RUN}/server.log
+touch ${LOG_FILENAME}
 
 echo "Starting server"
 
-sudo ip netns exec server1 env QLOGDIR=./logs/qlog RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/server \
+sudo ip netns exec server1 env QLOGDIR=${QLOG_DIR} RUST_BACKTRACE=full RUST_LOG=trace RUST_LOG_STYLE=always ./bin/server \
  --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --flexicast \
- --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $FALLBACK_DELAY --unicast > logs/server.log  2>&1 &
+ --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME}  2>&1 &
 
 echo "Server running!"
 
@@ -111,13 +124,19 @@ echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 
 // ------------------------ CLIENTS ------------------------
-%script@client waitfor=server-up delay=1
+%script@client waitfor=server-up delay=2
 
 cd $workdir/evaluations/tests/latency
 
 echo "Starting clients"
 pids=()
 for CLIENT_ID in $(seq $NUM_CLIENTS); do
+
+		LOG_DIR=./logs
+		CUR_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+		LOG_FILENAME=${LOG_DIR}/${CUR_RUN_NBR}/client${CLIENT_ID}.log
+		QLOG_DIR=${LOG_DIR}/${CUR_RUN_NBR}
+
 		echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
@@ -131,10 +150,10 @@ for CLIENT_ID in $(seq $NUM_CLIENTS); do
    		CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
     fi
 
-    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=./logs/qlog RUST_BACKTRACE=full RUST_LOG=debug RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
+    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOG_DIR} RUST_BACKTRACE=full RUST_LOG=trace RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
-			--interval ${INTERVAL} < /dev/null 2> logs/client${CLIENT_ID}.log  &
+			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
 
     # store the pid of this client into the pids set
     pids[${CLIENT_ID}]=$!
