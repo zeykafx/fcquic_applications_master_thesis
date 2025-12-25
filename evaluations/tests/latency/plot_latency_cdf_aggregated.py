@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
+import argparse
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 
-def main():
-    df = pd.read_csv("npf_out.csv")
+def file_path(path):
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
+
+
+def main(file_path, name):
+    df = pd.read_csv(file_path)
 
     sns.set_style("whitegrid")
     plt.figure(figsize=(10, 6))
@@ -38,10 +48,15 @@ def main():
 
     plt.tight_layout()
 
-    plt.savefig("latency_cdf_aggregated.png", dpi=300, bbox_inches="tight")
-    plt.savefig("latency_cdf_aggregated.svg", bbox_inches="tight")
+    plt.savefig(f"latency_cdf_aggregated_{name}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"latency_cdf_aggregated_{name}.svg", bbox_inches="tight")
     print("saved plogs")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser("plots")
+    parser.add_argument("file_path", type=file_path)
+    parser.add_argument("name", type=str)
+    args = parser.parse_args()
+
+    main(args.file_path, args.name)

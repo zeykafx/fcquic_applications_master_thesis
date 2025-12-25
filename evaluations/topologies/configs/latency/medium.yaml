@@ -8,8 +8,8 @@ topology:
 
         links:
             bandwidth: "30Mbit"
-            loss: "0%"
-            burst: "0%"
+            loss: "1%"
+            burst: "15%"
             delay: "3ms"
             buffer: 100000
             multicast: true
@@ -22,7 +22,7 @@ topology:
         links:
             - endpoints: ["r1", "r2"]
             - endpoints: ["r1", "r3"]
-            - endpoints: ["r1", "r5"] 
+            - endpoints: ["r1", "r5"]
             - endpoints: ["r2", "r4"]
             - endpoints: ["r3", "r4"]
             - endpoints: ["r3", "r7"]
@@ -36,7 +36,7 @@ topology:
         num: 4
 
     links:
-        - endpoints: ["r1", "server1"] 
+        - endpoints: ["r1", "server1"]
         - endpoints: ["r5", "client1"]
         - endpoints: ["r6", "client2"]
         - endpoints: ["r7", "client3"]
