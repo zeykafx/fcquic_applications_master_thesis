@@ -12,52 +12,49 @@ result_append={LATENCY}
 %late_variables
 release_mode=true
 connection_sleep_length=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
+BIN_LOG_LEVEL="trace"
 
 %variables
 NUM_CLIENTS=4
 TOPO_CONF_NAME="medium"
 FALLBACK_DELAY=100
 INTERVAL=1000 // ms
-TEST_LENGTH=30 // in seconds
+TEST_LENGTH=60 // in seconds
 IS_BASELINE=false
 PER_CLIENT_LAT_RESULTS=false
-BIN_LOG_LEVEL="trace"
 RUN_LOGS_DIR="./logs" // changed by the init script to include the current run number, as well as the version of test (e.g., "fcquic", or "baseline",...)
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
 
 %init
 # ------ Pre setup ------
-# Killing any server or client application still running
-sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
-
 # Setting buffer values
 sudo sysctl -w net.core.rmem_max=26214400
 sudo sysctl -w net.core.rmem_default=26214400
 
 # ------ Setting up log dir for this run ------
 
-cd $workdir/evaluations/tests/latency
+# cd $workdir/evaluations/tests/latency
 
-mkdir ./logs 2> /dev/null
+# mkdir ./logs 2> /dev/null
 
-DIR=./logs
+# DIR=./logs
 
-PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-PREV_RUN_NBR=${PREV_RUN_NBR:-0}
-CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
+# PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+# PREV_RUN_NBR=${PREV_RUN_NBR:-0}
+# CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
 
-LOGS_BASE_DIR=${DIR}/${CUR_RUN}
+# LOGS_BASE_DIR=${DIR}/${CUR_RUN}
 
-# append "baseline" to the dir name if running the baseline test
-if [ "$IS_BASELINE" = "true" ]; then
-	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
-else
-	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
-fi
+# # append "baseline" to the dir name if running the baseline test
+# if [ "$IS_BASELINE" = "true" ]; then
+# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
+# else
+# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
+# fi
 
-mkdir ${LOGS_BASE_DIR}
-RUN_LOGS_DIR=${LOGS_BASE_DIR}
+# mkdir ${LOGS_BASE_DIR}
+# RUN_LOGS_DIR=${LOGS_BASE_DIR}
 
 
 # ------------------------ Building App ------------------------
