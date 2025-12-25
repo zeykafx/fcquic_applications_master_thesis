@@ -19,12 +19,48 @@ TOPO_CONF_NAME="medium"
 FALLBACK_DELAY=100
 INTERVAL=1000 // ms
 TEST_LENGTH=30 // in seconds
+IS_BASELINE=false
 PER_CLIENT_LAT_RESULTS=false
+BIN_LOG_LEVEL="trace"
+RUN_LOGS_DIR="./logs" // changed by the init script to include the current run number, as well as the version of test (e.g., "fcquic", or "baseline",...)
 workdir="" // configured by the command in the run_test.sh script
 cargo_path=""
 
 %init
-// ------------------------ Building App ------------------------
+# ------ Pre setup ------
+# Killing any server or client application still running
+sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
+
+# Setting buffer values
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_default=26214400
+
+# ------ Setting up log dir for this run ------
+
+cd $workdir/evaluations/tests/latency
+
+mkdir ./logs 2> /dev/null
+
+DIR=./logs
+
+PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+PREV_RUN_NBR=${PREV_RUN_NBR:-0}
+CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
+
+LOGS_BASE_DIR=${DIR}/${CUR_RUN}
+
+# append "baseline" to the dir name if running the baseline test
+if [ "$IS_BASELINE" = "true" ]; then
+	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
+else
+	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
+fi
+
+mkdir ${LOGS_BASE_DIR}
+RUN_LOGS_DIR=${LOGS_BASE_DIR}
+
+
+# ------------------------ Building App ------------------------
 
 cd $workdir
 cd fcquic_chat
@@ -38,14 +74,24 @@ if [ "$release_mode" = "true" ]; then
     echo "building all in release mode"
     $cargo_path build --release
 
-    cp ./target/release/server $workdir/evaluations/tests/latency/bin/server
-    cp ./target/release/client $workdir/evaluations/tests/latency/bin/client
+    if [ "$IS_BASELINE" = "true" ]; then
+    	cp ./target/release/quic-server $workdir/evaluations/tests/latency/bin/quic-server
+      cp ./target/release/quic-client $workdir/evaluations/tests/latency/bin/quic-client
+    else
+    	cp ./target/release/server $workdir/evaluations/tests/latency/bin/server
+      cp ./target/release/client $workdir/evaluations/tests/latency/bin/client
+    fi
 else
     echo "building all in debug mode"
     $cargo_path  build
 
-    cp ./target/debug/server $workdir/evaluations/tests/latency/bin/server
-    cp ./target/debug/client $workdir/evaluations/tests/latency/bin/client
+    if [ "$IS_BASELINE" = "true" ]; then
+    	cp ./target/debug/quic-server $workdir/evaluations/tests/latency/bin/quic-server
+      cp ./target/debug/quic-client $workdir/evaluations/tests/latency/bin/quic-client
+    else
+    	cp ./target/debug/server $workdir/evaluations/tests/latency/bin/server
+      cp ./target/debug/client $workdir/evaluations/tests/latency/bin/client
+    fi
 fi
 
 echo "Done building project"
@@ -94,27 +140,38 @@ echo "EVENT topo-setup"
 
 cd $workdir/evaluations/tests/latency
 
-mkdir ./logs 2> /dev/null
-# mkdir logs/qlog 2> /dev/null
+# mkdir ./logs 2> /dev/null
+# # mkdir logs/qlog 2> /dev/null
 
-LOG_DIR=./logs
+# LOG_DIR=./logs
 
-PREV_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-PREV_RUN_NBR=${PREV_RUN_NBR:-0}
-CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
+# PREV_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+# PREV_RUN_NBR=${PREV_RUN_NBR:-0}
+# CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
 
-QLOG_DIR=${LOG_DIR}/${CUR_RUN}
-mkdir ${QLOG_DIR}
+# LOGS_BASE_DIR=${LOG_DIR}/${CUR_RUN}
+# # append "baseline" to the dir name if running the baseline test
+# if [ "$IS_BASELINE" = "true" ]; then
+# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
+# else
+# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
+# fi
 
-LOG_FILENAME=${LOG_DIR}/${CUR_RUN}/server.log
+# mkdir ${LOGS_BASE_DIR}
+
+LOG_FILENAME=${RUN_LOGS_DIR}/server.log
 touch ${LOG_FILENAME}
 
 echo "Starting server"
 
-sudo ip netns exec server1 env QLOGDIR=${QLOG_DIR} RUST_BACKTRACE=full RUST_LOG=trace RUST_LOG_STYLE=always ./bin/server \
- --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --flexicast \
- --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME}  2>&1 &
-
+if [ "$IS_BASELINE" = "true" ]; then
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
+		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
+else
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+	 --fc-timer 0 --ctl-ack-delay 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME}  2>&1 &
+fi
 echo "Server running!"
 
 echo "EVENT server-up"
@@ -132,10 +189,11 @@ echo "Starting clients"
 pids=()
 for CLIENT_ID in $(seq $NUM_CLIENTS); do
 
-		LOG_DIR=./logs
-		CUR_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-		LOG_FILENAME=${LOG_DIR}/${CUR_RUN_NBR}/client${CLIENT_ID}.log
-		QLOG_DIR=${LOG_DIR}/${CUR_RUN_NBR}
+		# LOG_DIR=./logs
+		# CUR_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
+		# LOGS_BASE_DIR=${LOG_DIR}/${CUR_RUN_NBR}
+
+		LOG_FILENAME=${RUN_LOGS_DIR}/client${CLIENT_ID}.log
 
 		echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
@@ -150,10 +208,17 @@ for CLIENT_ID in $(seq $NUM_CLIENTS); do
    		CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
     fi
 
-    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOG_DIR} RUST_BACKTRACE=full RUST_LOG=trace RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
-			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
-			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
+    if [ "$IS_BASELINE" = "true" ]; then
+    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
+				-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
+				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
+    else
+	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
+				-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
+				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
+		fi
 
     # store the pid of this client into the pids set
     pids[${CLIENT_ID}]=$!
