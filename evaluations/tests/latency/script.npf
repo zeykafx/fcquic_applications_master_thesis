@@ -3,7 +3,6 @@
 %info
 FCQUIC App Latency test
 
-
 %config
 n_runs=1
 timeout=3600
@@ -15,8 +14,12 @@ connection_sleep_length=2 // seconds to sleep before the clients consider the co
 BIN_LOG_LEVEL="trace"
 
 %variables
-NUM_CLIENTS=4
 TOPO_CONF_NAME="medium"
+// TODO: change these values based on the ones found in the topology file just above
+LOSS_RATE="0%"
+BURST_RATE="0%"
+DELAY="3ms"
+NUM_CLIENTS=4
 FALLBACK_DELAY=100
 INTERVAL=1000 // ms
 TEST_LENGTH=60 // in seconds

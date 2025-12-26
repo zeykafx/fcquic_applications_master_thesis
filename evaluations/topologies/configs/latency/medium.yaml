@@ -8,8 +8,10 @@ topology:
 
         links:
             bandwidth: "30Mbit"
-            loss: "1%"
-            burst: "15%"
+            # loss: "1%"
+            loss: "0%"
+            # burst: "15%"
+            burst: "0%"
             delay: "3ms"
             buffer: 100000
             multicast: true

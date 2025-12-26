@@ -32,11 +32,11 @@ DIR=./logs
 # PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
 # PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -name '[0-9]*' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 if [ "$IS_BASELINE" = "true" ]; then
+	# looking for previous baseline run
+    PREV_RUN_NBR=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
+else
     # looking for previous fcquic run
     PREV_RUN_NBR=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
-else
-    # looking for previous baseline run
-    PREV_RUN_NBR=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 fi
 
 PREV_RUN_NBR=${PREV_RUN_NBR:-0}
@@ -55,6 +55,7 @@ sudo mkdir ${LOGS_BASE_DIR}
 RUN_LOGS_DIR=${LOGS_BASE_DIR}
 
 cd $workdir/evaluations
+
 
 # ---------------- Running npf script ----------------
 
