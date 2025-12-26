@@ -12,7 +12,6 @@ result_append={LATENCY}
 RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
 BIN_LOG_LEVEL="trace"
-PLOT_RESULTS=true
 
 %variables
 TOPO_CONF_NAME="medium_0%_loss"
@@ -226,19 +225,6 @@ echo "EVENT clients-done"
 if [ "$IS_BASELINE" = "true" ]; then
 	echo "EVENT tests-done"
 fi
-
-
-// can't graph here because the csv hasn't been saved yet lol....
-// %script@plotting waitfor=tests-done
-// // ------------------------ PLOTS ------------------------
-
-// echo "Graphing results"
-
-// cd $WORKDIR/evaluations/tests/latency/graphs
-
-// ./cdf_plots.py ../out/npf_out.csv --name ${TOPO_CONF_NAME}
-
-// echo "EVENT plotting-done"
 
 %script@teardown waitfor=tests-done
 
