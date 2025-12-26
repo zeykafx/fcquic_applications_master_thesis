@@ -1,4 +1,11 @@
-# TOPO_NAME=@1
+
+# use a default topology name if no argument is provided, otherwise use the provided argument as the topo name
+TOPO_CONF_NAME="medium_0%_loss"
+if [ $# -gt 0 ]; then
+	TOPO_CONF_NAME="$1"
+fi
+
+echo "Running tests for topology: ${TOPO_CONF_NAME}"
 
 CARGO_PATH=$(which cargo)
 WORKDIR=$(pwd)/..
@@ -72,11 +79,10 @@ sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
     RUN_LOGS_DIR_FCQUIC_FEC=$RUN_LOGS_DIR_FCQUIC_FEC \
     RUN_LOGS_DIR_BASELINE=$RUN_LOGS_DIR_BASELINE \
     CARGO_PATH=$CARGO_PATH \
-    $@
+    TOPO_CONF_NAME=$TOPO_CONF_NAME
 
 
 # The line "$@" allows us to pass the remaning arguments from this script to the npf script
-
 
 # ---------------- Plots ----------------
 

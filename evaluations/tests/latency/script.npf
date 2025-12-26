@@ -244,6 +244,6 @@ fi
 
 cd $WORKDIR/evaluations/topologies
 echo "Tearing down the topology ${TOPO_CONF_NAME}"
-sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml teardown
+sudo python ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml teardown
 
 echo "EVENT topo-teardown"
