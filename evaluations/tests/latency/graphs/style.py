@@ -61,7 +61,6 @@ def latexify(fig_width=None, fig_height=None, columns=2, nb_subplots_line=1):
         print("WARNING: fig_height too large {}: so will reduce to {} inches.".format(
             fig_height, MAX_HEIGHT_INCHES))
         fig_height = MAX_HEIGHT_INCHES
-    print(fig_width, fig_height)
     params = {'backend': 'ps',
               'text.latex.preamble': r'\usepackage[T1]{fontenc} \usepackage{gensymb}',
               'axes.labelsize': LABEL_FONT_SIZE,  # fontsize for x and y labels (was 10)

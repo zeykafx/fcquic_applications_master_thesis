@@ -4,6 +4,7 @@
 import argparse
 import os
 from ipaddress import IPv4Address, IPv4Network
+from pathlib import Path
 
 import yaml
 from topo import Topology
@@ -303,8 +304,10 @@ def main():
     defaults, routers, servers, clients, links = parse_config_file(conf_file)
 
     draw_diagram = args.draw
+    config_path = Path(conf_file)
     config_dir = os.path.dirname(conf_file)
-    diagram_filename = os.path.join(config_dir, "diagram")
+    config_name = config_path.stem
+    diagram_filename = os.path.join(config_dir, config_name)
 
     parse_defaults(defaults)
 

@@ -125,7 +125,7 @@ class Topology:
     def draw_diagram(self, filename="diagram"):
         # graph is used because it's bidirectional links
         dot = graphviz.Graph(filename, format="svg", engine="neato")
-        dot.attr(overlap="vpsc", splines="true", sep="+30", esep="+5", normalize="0")
+        dot.attr(overlap="vpsc", splines="true", sep="+40", esep="+10", normalize="0")
 
         for node in self.graph.nodes:
             # check if node has multicast disabled on any link
@@ -176,7 +176,7 @@ class Topology:
                     penwidth=penwidth,
                     headlabel=label_str,
                     labeldistance="3.0",
-                    labelfontsize="15",
+                    labelfontsize="13",
                 )
         dot.render(cleanup=True)
 

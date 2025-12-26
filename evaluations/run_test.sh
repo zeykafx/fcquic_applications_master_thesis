@@ -1,71 +1,89 @@
-IS_BASELINE=${1:-false} # set IS_BASELINE to true if the first arg is true, otherwise set it to false
-
-# https://stackoverflow.com/a/13864829
-if [ -z "${1+x}" ]; then
-	# no arg is passed, do nothing
-	echo "No arg passed in, running fcquic version"
-else
-	shift # remove the first argument from the list
-fi
+# TOPO_NAME=@1
 
 CARGO_PATH=$(which cargo)
-workdir=$(pwd)/..
+WORKDIR=$(pwd)/..
 RESULT_FILENAME="npf_out"
-
-if [ "$IS_BASELINE" = "true" ]; then
-    echo "Running latency test with BASELINE QUIC version"
-else
-    echo "Running latency test"
-fi
 
 # Killing any server or client application still running
 sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
+# ------------------------ Logs setup ------------------------
 
-# ---------------- Logs setup ----------------
 echo "Setting up logs directory"
 
-cd $workdir/evaluations/tests/latency
+cd $WORKDIR/evaluations/tests/latency
 
 sudo mkdir ./logs 2> /dev/null
 DIR=./logs
 
-# PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-# PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -name '[0-9]*' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
-if [ "$IS_BASELINE" = "true" ]; then
-	# looking for previous baseline run
-    PREV_RUN_NBR=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
-else
-    # looking for previous fcquic run
-    PREV_RUN_NBR=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
-fi
+# looking for previous baseline run
+PREV_RUN_NBR_BASELINE=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
+# looking for previous fcquic run
+PREV_RUN_NBR_FCQUIC_NO_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_no_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
+PREV_RUN_NBR_FCQUIC_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 
-PREV_RUN_NBR=${PREV_RUN_NBR:-0}
-CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
-LOGS_BASE_DIR=${DIR}/${CUR_RUN}
 
-# append "baseline" to the dir name if running the baseline test
-if [ "$IS_BASELINE" = "true" ]; then
-	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
-    RESULT_FILENAME="${RESULT_FILENAME}_baseline"
-else
-	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
-fi
+# ------------ BASELINE QUIC ------------
 
-sudo mkdir ${LOGS_BASE_DIR}
-RUN_LOGS_DIR=${LOGS_BASE_DIR}
+# setup baseline logs directory
+PREV_RUN_NBR_BASELINE=${PREV_RUN_NBR_BASELINE:-0}
+CUR_RUN_BASELINE=$(echo "${PREV_RUN_NBR_BASELINE}+1" | bc)
+LOGS_BASE_DIR_BASELINE=${DIR}/${CUR_RUN_BASELINE}
 
-cd $workdir/evaluations
+LOGS_BASE_DIR_BASELINE="${LOGS_BASE_DIR_BASELINE}_baseline"
 
+sudo mkdir ${LOGS_BASE_DIR_BASELINE}
+RUN_LOGS_DIR_BASELINE=${LOGS_BASE_DIR_BASELINE}
+
+# ------------ FCQUIC NO FEC ------------
+
+# Setup fcquic logs directory
+PREV_RUN_NBR_FCQUIC_NO_FEC=${PREV_RUN_NBR_FCQUIC_NO_FEC:-0}
+CUR_RUN_FCQUIC_NO_FEC=$(echo "${PREV_RUN_NBR_FCQUIC_NO_FEC}+1" | bc)
+LOGS_BASE_DIR_FCQUIC_NO_FEC=${DIR}/${CUR_RUN_FCQUIC_NO_FEC}
+
+LOGS_BASE_DIR_FCQUIC_NO_FEC="${LOGS_BASE_DIR_FCQUIC_NO_FEC}_fcquic_no_fec"
+
+sudo mkdir ${LOGS_BASE_DIR_FCQUIC_NO_FEC}
+RUN_LOGS_DIR_FCQUIC_NO_FEC=${LOGS_BASE_DIR_FCQUIC_NO_FEC}
+
+# ------------ FCQUIC WITH FEC ------------
+PREV_RUN_NBR_FCQUIC_FEC=${PREV_RUN_NBR_FCQUIC_FEC:-0}
+CUR_RUN_FCQUIC_FEC=$(echo "${PREV_RUN_NBR_FCQUIC_FEC}+1" | bc)
+LOGS_BASE_DIR_FCQUIC_FEC=${DIR}/${CUR_RUN_FCQUIC_FEC}
+
+LOGS_BASE_DIR_FCQUIC_FEC="${LOGS_BASE_DIR_FCQUIC_FEC}_fcquic_fec"
+
+sudo mkdir ${LOGS_BASE_DIR_FCQUIC_FEC}
+RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}
+
+echo "RUN_LOGS_DIR_BASELINE=${LOGS_BASE_DIR_BASELINE}"
+echo "RUN_LOGS_DIR_FCQUIC_NO_FEC=${LOGS_BASE_DIR_FCQUIC_NO_FEC}"
+echo "RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}"
+
+cd $WORKDIR/evaluations
 
 # ---------------- Running npf script ----------------
 
 sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
     --single-output ./tests/latency/out/${RESULT_FILENAME}.csv \
     --no-graph --force-retest \
-    --variables workdir=$workdir \
-    cargo_path=$CARGO_PATH \
-    RUN_LOGS_DIR=$RUN_LOGS_DIR \
-    IS_BASELINE=$IS_BASELINE \
+    --variables WORKDIR=$WORKDIR \
+    RUN_LOGS_DIR_FCQUIC_NO_FEC=$RUN_LOGS_DIR_FCQUIC_NO_FEC \
+    RUN_LOGS_DIR_FCQUIC_FEC=$RUN_LOGS_DIR_FCQUIC_FEC \
+    RUN_LOGS_DIR_BASELINE=$RUN_LOGS_DIR_BASELINE \
+    CARGO_PATH=$CARGO_PATH \
     $@
 
+
 # The line "$@" allows us to pass the remaning arguments from this script to the npf script
+
+
+# ---------------- Plots ----------------
+
+echo "Graphing results"
+
+cd $WORKDIR/evaluations/tests/latency/graphs
+
+./cdf_plots.py ../out/npf_out.csv
+
+echo "Plots written"

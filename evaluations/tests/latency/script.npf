@@ -9,128 +9,112 @@ timeout=3600
 result_append={LATENCY}
 
 %late_variables
-release_mode=true
-connection_sleep_length=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
+RELEASE_MODE=true
+CONNECTION_SLEEP_LENGTH=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
 BIN_LOG_LEVEL="trace"
+PLOT_RESULTS=true
 
 %variables
-TOPO_CONF_NAME="medium"
-// TODO: change these values based on the ones found in the topology file just above
-LOSS_RATE="0%"
-BURST_RATE="0%"
-DELAY="3ms"
+TOPO_CONF_NAME="medium_0%_loss"
 NUM_CLIENTS=4
 FALLBACK_DELAY=100
-INTERVAL=1000 // ms
-TEST_LENGTH=60 // in seconds
-IS_BASELINE=false
+{
+	FEC_MODE={"noredundancy", "constant", ""} 
+	IS_BASELINE={"false","false","true"}
+}
+// This will 3 tests: FC-QUIC without FEC, FC-QUIC with FEC, Baseline QUIC (no FEC)
+INTERVAL=1000
+TEST_LENGTH=45
 PER_CLIENT_LAT_RESULTS=false
-RUN_LOGS_DIR="./logs" // changed by the init script to include the current run number, as well as the version of test (e.g., "fcquic", or "baseline",...)
-workdir="" // configured by the command in the run_test.sh script
-cargo_path=""
+WORKDIR=""
+RUN_LOGS_DIR_BASELINE="./logs"
+RUN_LOGS_DIR_FCQUIC_NO_FEC="./logs"
+RUN_LOGS_DIR_FCQUIC_FEC="./logs"
+CARGO_PATH=""
 
 %init
+
 # ------ Pre setup ------
 # Setting buffer values
 sudo sysctl -w net.core.rmem_max=26214400
 sudo sysctl -w net.core.rmem_default=26214400
 
-# ------ Setting up log dir for this run ------
-
-# cd $workdir/evaluations/tests/latency
-
-# mkdir ./logs 2> /dev/null
-
-# DIR=./logs
-
-# PREV_RUN_NBR=$(find ${DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-# PREV_RUN_NBR=${PREV_RUN_NBR:-0}
-# CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
-
-# LOGS_BASE_DIR=${DIR}/${CUR_RUN}
-
-# # append "baseline" to the dir name if running the baseline test
-# if [ "$IS_BASELINE" = "true" ]; then
-# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
-# else
-# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
-# fi
-
-# mkdir ${LOGS_BASE_DIR}
-# RUN_LOGS_DIR=${LOGS_BASE_DIR}
-
 
 # ------------------------ Building App ------------------------
 
-cd $workdir
+cd $WORKDIR
 cd fcquic_chat
 
-rm -rf $workdir/evaluations/tests/latency/bin 2> /dev/null
-mkdir $workdir/evaluations/tests/latency/bin
+rm -rf $WORKDIR/evaluations/tests/latency/bin 2> /dev/null
+mkdir $WORKDIR/evaluations/tests/latency/bin
 
 echo "Building project"
 
-if [ "$release_mode" = "true" ]; then
+if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    $cargo_path build --release
+    $CARGO_PATH build --release > /dev/null 2> /dev/null
 
-    if [ "$IS_BASELINE" = "true" ]; then
-    	cp ./target/release/quic-server $workdir/evaluations/tests/latency/bin/quic-server
-      cp ./target/release/quic-client $workdir/evaluations/tests/latency/bin/quic-client
-    else
-    	cp ./target/release/server $workdir/evaluations/tests/latency/bin/server
-      cp ./target/release/client $workdir/evaluations/tests/latency/bin/client
-    fi
+   	cp ./target/release/quic-server $WORKDIR/evaluations/tests/latency/bin/quic-server
+    cp ./target/release/quic-client $WORKDIR/evaluations/tests/latency/bin/quic-client
+   	cp ./target/release/server $WORKDIR/evaluations/tests/latency/bin/server
+    cp ./target/release/client $WORKDIR/evaluations/tests/latency/bin/client
 else
     echo "building all in debug mode"
-    $cargo_path  build
+    $CARGO_PATH build > /dev/null 2> /dev/null
 
-    if [ "$IS_BASELINE" = "true" ]; then
-    	cp ./target/debug/quic-server $workdir/evaluations/tests/latency/bin/quic-server
-      cp ./target/debug/quic-client $workdir/evaluations/tests/latency/bin/quic-client
-    else
-    	cp ./target/debug/server $workdir/evaluations/tests/latency/bin/server
-      cp ./target/debug/client $workdir/evaluations/tests/latency/bin/client
-    fi
+   	cp ./target/debug/quic-server $WORKDIR/evaluations/tests/latency/bin/quic-server
+    cp ./target/debug/quic-client $WORKDIR/evaluations/tests/latency/bin/quic-client
+   	cp ./target/debug/server $WORKDIR/evaluations/tests/latency/bin/server
+    cp ./target/debug/client $WORKDIR/evaluations/tests/latency/bin/client
 fi
 
 echo "Done building project"
 
 echo "copying certificates"
-cp ./cert.crt $workdir/evaluations/tests/latency/cert.crt
-cp ./cert.key $workdir/evaluations/tests/latency/cert.key
+cp ./cert.crt $WORKDIR/evaluations/tests/latency/cert.crt
+cp ./cert.key $WORKDIR/evaluations/tests/latency/cert.key
+
 
 // ------------------------ Topology Setup ------------------------
 %script@topology autokill=false sudo=true
-cd $workdir/evaluations/topologies
+cd $WORKDIR/evaluations/topologies
 
-echo "Setting up the topology"
+# Do not setup the topology if we're running the baseline test, or the fcquic test with FEC
+# basically, only setup the topology before the very first test
+# This is such a hack, but afaik there's no easy way to change a variable myself to know if the topo was setup already
+# (the var change doesn't stick in between tests)
+if [[ "$IS_BASELINE" == "true" || "$FEC_MODE" == "constant" ]]; then
+	echo "Topo already setup, skipping setup"
+else	
+	echo "Setting up the topology"
 
-sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml setup
+	sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml setup
 
-echo "Set up topologies, now waiting for convergence"
+	echo "Set up topologies, now waiting for convergence"
 
-# code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
+	# code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
 
-CLIENT_ID_CONVERGENCE_TEST=$(echo ${NUM_CLIENTS} - 1 | bc)
-echo "Testing convergence from client${CLIENT_ID_CONVERGENCE_TEST}"
+	CLIENT_ID_CONVERGENCE_TEST=$(echo ${NUM_CLIENTS} - 1 | bc)
+	echo "Testing convergence from client${CLIENT_ID_CONVERGENCE_TEST}"
 
-converged=false
-while [ $converged != "true" ]; do
-    ping_res=$(ip netns exec client${CLIENT_ID_CONVERGENCE_TEST} ping 10.10.0.2 -i 0.1 -c 5)
-    errors=$(echo "$ping_res" | grep 'error')
-    losses=$(echo "$ping_res" | grep 'packet loss' | cut -f6 -d' ')
-    losses=${losses%\%}
-    if [ -z "$errors" -a "$losses" -lt 5 ]; then
-        converged=true
-    else
-        echo "Waiting for convergence"
-    fi
-done
+	converged=false
+	while [ $converged != "true" ]; do
+	    ping_res=$(ip netns exec client${CLIENT_ID_CONVERGENCE_TEST} ping 10.10.0.2 -i 0.1 -c 5)
+	    errors=$(echo "$ping_res" | grep 'error')
+	    losses=$(echo "$ping_res" | grep 'packet loss' | cut -f6 -d' ')
+	    losses=${losses%\%}
+	    if [ -z "$errors" -a "$losses" -lt 5 ]; then
+	        converged=true
+	    else
+	        echo "Waiting for convergence"
+	    fi
+	done
 
-echo "Topology setup and IS-IS converged"
+	echo "Topology setup and IS-IS converged"
 
-sleep 10
+	# wait even more for everything to converge
+	sleep 20
+fi
 
 echo "EVENT topo-setup"
 
@@ -138,39 +122,39 @@ echo "EVENT topo-setup"
 // Wait for the topology setup event to fire
 %script@server waitfor=topo-setup
 
-cd $workdir/evaluations/tests/latency
-
-# mkdir ./logs 2> /dev/null
-# # mkdir logs/qlog 2> /dev/null
-
-# LOG_DIR=./logs
-
-# PREV_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-# PREV_RUN_NBR=${PREV_RUN_NBR:-0}
-# CUR_RUN=$(echo "${PREV_RUN_NBR}+1" | bc)
-
-# LOGS_BASE_DIR=${LOG_DIR}/${CUR_RUN}
-# # append "baseline" to the dir name if running the baseline test
-# if [ "$IS_BASELINE" = "true" ]; then
-# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_baseline"
-# else
-# 	LOGS_BASE_DIR="${LOGS_BASE_DIR}_fcquic"
-# fi
-
-# mkdir ${LOGS_BASE_DIR}
-
-LOG_FILENAME=${RUN_LOGS_DIR}/server.log
-touch ${LOG_FILENAME}
+cd $WORKDIR/evaluations/tests/latency
 
 echo "Starting server"
 
 if [ "$IS_BASELINE" = "true" ]; then
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
+
+	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/server.log
+	touch ${LOG_FILENAME}
+
+	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC}/server.log
+
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
 		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
 else
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
-	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
-	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
+	# Use different log directories for the FEC and NO FEC tests runs
+	if [ "$FEC_MODE" = "constant" ]; then
+		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/server.log
+		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+		touch ${LOG_FILENAME}
+	
+		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &	
+	else	
+		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/server.log
+		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+		touch ${LOG_FILENAME}
+	
+		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &
+	fi
+
 fi
 echo "Server running!"
 
@@ -183,17 +167,11 @@ sleep ${SLEEP_LENGTH_SERVER}
 // ------------------------ CLIENTS ------------------------
 %script@client waitfor=server-up delay=2
 
-cd $workdir/evaluations/tests/latency
+cd $WORKDIR/evaluations/tests/latency
 
 echo "Starting clients"
 pids=()
 for CLIENT_ID in $(seq $NUM_CLIENTS); do
-
-		# LOG_DIR=./logs
-		# CUR_RUN_NBR=$(find ${LOG_DIR} -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' 2>/dev/null | sort -n | tail -n 1)
-		# LOGS_BASE_DIR=${LOG_DIR}/${CUR_RUN_NBR}
-
-		LOG_FILENAME=${RUN_LOGS_DIR}/client${CLIENT_ID}.log
 
 		echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
@@ -209,21 +187,31 @@ for CLIENT_ID in $(seq $NUM_CLIENTS); do
     fi
 
     if [ "$IS_BASELINE" = "true" ]; then
-    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
+
+    	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/client${CLIENT_ID}.log
+
+			sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
 				-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
-				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
+				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
     else
-	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
+    	if [ "$FEC_MODE" = "constant" ]; then
+   			LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/client${CLIENT_ID}.log
+      	QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC}
+     	else
+    		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/client${CLIENT_ID}.log
+     		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC}
+      fi
+
+	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 				-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${connection_sleep_length} \
-				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME}  &
+				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 		fi
 
     # store the pid of this client into the pids set
     pids[${CLIENT_ID}]=$!
 done
-
 
 echo "All clients started"
 
@@ -233,3 +221,29 @@ for pid in ${pids[*]}; do
 done
 
 echo "EVENT clients-done"
+
+# only output the tests-done event when the baseline clients are done
+if [ "$IS_BASELINE" = "true" ]; then
+	echo "EVENT tests-done"
+fi
+
+
+// can't graph here because the csv hasn't been saved yet lol....
+// %script@plotting waitfor=tests-done
+// // ------------------------ PLOTS ------------------------
+
+// echo "Graphing results"
+
+// cd $WORKDIR/evaluations/tests/latency/graphs
+
+// ./cdf_plots.py ../out/npf_out.csv --name ${TOPO_CONF_NAME}
+
+// echo "EVENT plotting-done"
+
+%script@teardown waitfor=tests-done
+
+cd $WORKDIR/evaluations/topologies
+echo "Tearing down the topology ${TOPO_CONF_NAME}"
+sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml teardown
+
+echo "EVENT topo-teardown"
