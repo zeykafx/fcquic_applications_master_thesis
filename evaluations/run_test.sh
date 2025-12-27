@@ -9,7 +9,7 @@ echo "Running tests for topology: ${TOPO_CONF_NAME}"
 
 CARGO_PATH=$(which cargo)
 WORKDIR=$(pwd)/..
-RESULT_FILENAME="npf_out"
+RESULT_FILENAME="npf_out_${TOPO_CONF_NAME}"
 
 # Killing any server or client application still running
 sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"
@@ -90,6 +90,6 @@ echo "Graphing results"
 
 cd $WORKDIR/evaluations/tests/latency/graphs
 
-./cdf_plots.py ../out/npf_out.csv
+./cdf_plots.py ../out/${RESULT_FILENAME}.csv
 
 echo "Plots written"

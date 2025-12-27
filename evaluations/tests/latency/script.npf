@@ -1,4 +1,4 @@
-// Note: This script was inspired by the evaluation script from Anthony Doeraene and NPF's documentation
+// # Note: This script was inspired by the evaluation script from Anthony Doeraene and NPF's documentation
 
 %info
 FCQUIC App Latency test
@@ -10,7 +10,7 @@ result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE=true
-CONNECTION_SLEEP_LENGTH=2 // seconds to sleep before the clients consider the conn. to be open (TODO: must add a way to check the conn. status to fcquic)
+CONNECTION_SLEEP_LENGTH=10
 BIN_LOG_LEVEL="trace"
 
 %variables
@@ -18,12 +18,18 @@ TOPO_CONF_NAME="medium_0%_loss"
 NUM_CLIENTS=4
 FALLBACK_DELAY=100
 {
-	FEC_MODE={"noredundancy", "constant", ""} 
-	IS_BASELINE={"false","false","true"}
+	FEC_MODE={"","constant","noredundancy"}
+	IS_BASELINE={"true","false","false"}
+	TEST_NBR={"0","1","2"}
 }
-// This will 3 tests: FC-QUIC without FEC, FC-QUIC with FEC, Baseline QUIC (no FEC)
+// # This will 3 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC
 INTERVAL=1000
-TEST_LENGTH=45
+POISSON="true"
+LAMBDA=1
+// # poisson:POISSON={"false","true"}
+// # poisson:FEC_MODE="constant"
+// # poisson:IS_BASELINE={"false","true"}
+TEST_LENGTH=50
 PER_CLIENT_LAT_RESULTS=false
 WORKDIR=""
 RUN_LOGS_DIR_BASELINE="./logs"
@@ -78,13 +84,11 @@ cp ./cert.key $WORKDIR/evaluations/tests/latency/cert.key
 %script@topology autokill=false sudo=true
 cd $WORKDIR/evaluations/topologies
 
-# Do not setup the topology if we're running the baseline test, or the fcquic test with FEC
+# Do not setup the topology if we're running the FCQUIC test
 # basically, only setup the topology before the very first test
 # This is such a hack, but afaik there's no easy way to change a variable myself to know if the topo was setup already
 # (the var change doesn't stick in between tests)
-if [[ "$IS_BASELINE" == "true" || "$FEC_MODE" == "constant" ]]; then
-	echo "Topo already setup, skipping setup"
-else	
+if [[ "$TEST_NBR" == "0" ]]; then
 	echo "Setting up the topology"
 
 	sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml setup
@@ -112,14 +116,23 @@ else
 	echo "Topology setup and IS-IS converged"
 
 	# wait even more for everything to converge
-	sleep 20
+	sleep 10
+else
+	echo "Topo already setup, skipping setup"
 fi
 
 echo "EVENT topo-setup"
 
 // ------------------------ SERVER ------------------------
 // Wait for the topology setup event to fire
-%script@server waitfor=topo-setup
+%script@server waitfor=topo-setup sudo=true
+
+# Killing any server or client application still running
+pkill quic-client || true
+pkill client || true
+pkill quic-server || true
+pkill server || true
+
 
 cd $WORKDIR/evaluations/tests/latency
 
@@ -140,15 +153,15 @@ else
 		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/server.log
 		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 		touch ${LOG_FILENAME}
-	
+
 		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
 		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
-		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &	
-	else	
+		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &
+	else
 		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/server.log
 		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 		touch ${LOG_FILENAME}
-	
+
 		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
 		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
 		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &
@@ -166,46 +179,56 @@ sleep ${SLEEP_LENGTH_SERVER}
 // ------------------------ CLIENTS ------------------------
 %script@client waitfor=server-up delay=2
 
+# Killing any server or client application still running
+pkill quic-client || true
+pkill client || true
+
 cd $WORKDIR/evaluations/tests/latency
 
 echo "Starting clients"
 pids=()
-for CLIENT_ID in $(seq $NUM_CLIENTS); do
+# Go in reverse order, start the last client first, then second to last,... then client 1 (the sedner)
+for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 
-		echo "starting client ${CLIENT_ID}"
+	echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
     CLIENT_ARGS=""
     if [ "$CLIENT_ID" = "1" ]; then
-    		echo "client${CLIENT_ID} is the sender"
-        CLIENT_ARGS="--sender"
+  		echo "client${CLIENT_ID} is the sender"
+       	CLIENT_ARGS="--sender"
     fi
 
     if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
    		CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
     fi
 
-    if [ "$IS_BASELINE" = "true" ]; then
+    if [ "$POISSON" = "true" ]; then
+    	CLIENT_ARGS="$CLIENT_ARGS --poisson --lambda ${LAMBDA}"
+    fi
 
+    if [ "$IS_BASELINE" = "true" ]; then
     	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/client${CLIENT_ID}.log
 
-			sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
-				-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
+			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
     else
     	if [ "$FEC_MODE" = "constant" ]; then
    			LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/client${CLIENT_ID}.log
-      	QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC}
+      		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC}
+        	# Also allow the client to receive FEC information
+        	CLIENT_ARGS="$CLIENT_ARGS --fec"
      	else
     		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/client${CLIENT_ID}.log
      		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC}
       fi
 
 	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
-				-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-				--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-				--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 		fi
 
     # store the pid of this client into the pids set
@@ -219,17 +242,21 @@ for pid in ${pids[*]}; do
     wait $pid
 done
 
-echo "EVENT clients-done"
 
-# only output the tests-done event when the baseline clients are done
-if [ "$IS_BASELINE" = "true" ]; then
+
+# only output the tests-done event when we finished running the last test
+if [ "$TEST_NBR" = "2" ]; then
 	echo "EVENT tests-done"
+else
+	echo "EVENT clients-done"
 fi
 
-%script@teardown waitfor=tests-done
+%script@teardown waitfor=tests-done autokill=false sudo=true
 
 cd $WORKDIR/evaluations/topologies
-echo "Tearing down the topology ${TOPO_CONF_NAME}"
-sudo python ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml teardown
 
-echo "EVENT topo-teardown"
+echo "Tearing down the topology ${TOPO_CONF_NAME}"
+sudo python3 ./create-topo.py ./configs/latency/${TOPO_CONF_NAME}.yaml teardown
+
+echo "Done tearing down the topology"
+sleep 10

@@ -422,6 +422,7 @@ def main():
                 print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}\t{multicast}")
 
     else:
+        print(f"Tearing down topology: {conf_file}")
         topo.teardown()
 
 

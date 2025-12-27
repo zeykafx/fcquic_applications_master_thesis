@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from style import COLORS, latexify
+from style import COLORS, LINESTYLES, LINEWIDTH, latexify
 
 
 def file_path(path):
@@ -18,11 +18,15 @@ def file_path(path):
 
 def main(res_path):
     data_df = pd.read_csv(res_path)
-    
-    topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace("\"", "")
-    
+
+    topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
+
     # groupby returns a series of tuples, each being the value of test_index, and then a dataframe containing the rows with the same test_index value
-    (fcquic, fcquic_fec, baseline) = data_df.groupby("test_index")
+    (
+        baseline,
+        fcquic_fec,
+        fcquic,
+    ) = data_df.groupby("test_index")
     # The first test is always the FC-QUIC test, and the second is always FCQUIC with FEC, the third is the baseline
 
     df_fcquic = fcquic[1]
@@ -40,13 +44,29 @@ def main(res_path):
     plt.figure(figsize=(8, 6))
     latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
 
-    plt.ecdf((df_fcquic["y_LATENCY"] / 1000), label="FC-QUIC", color=COLORS[1])
     plt.ecdf(
-        (df_fcquic_fec["y_LATENCY"] / 1000), label="FC-QUIC with FEC", color=COLORS[3]
+        (df_fcquic["y_LATENCY"] / 1000),
+        label="FC-QUIC",
+        color=COLORS[1],
+        linestyle=LINESTYLES[0],
+        lw=LINEWIDTH,
     )
-    plt.ecdf((df_baseline["y_LATENCY"] / 1000), label="Baseline QUIC", color=COLORS[2])
-    plt.ylabel("Probability", fontsize=12)
-    plt.title("CDF of Latency", fontsize=14)
+    plt.ecdf(
+        (df_fcquic_fec["y_LATENCY"] / 1000),
+        label="FC-QUIC with FEC",
+        color=COLORS[3],
+        linestyle=LINESTYLES[2],
+        lw=LINEWIDTH + 0.2,
+    )
+    plt.ecdf(
+        (df_baseline["y_LATENCY"] / 1000),
+        label="Baseline QUIC",
+        color=COLORS[2],
+        linestyle=LINESTYLES[3],
+        lw=LINEWIDTH,
+    )
+    plt.ylabel("Probability of occurence", fontsize=12)
+    plt.title("Cumulative distribution of latency", fontsize=14)
     plt.xlabel("Latency (ms)", fontsize=12)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
