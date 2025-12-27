@@ -20,24 +20,37 @@ def main(res_path):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
+    is_poisson = data_df["POISSON"][0] == "true"
+    print(f"is poisson?: {is_poisson}")
 
-    # groupby returns a series of tuples, each being the value of test_index, and then a dataframe containing the rows with the same test_index value
-    (
-        baseline,
-        fcquic_fec,
-        fcquic,
-    ) = data_df.groupby("test_index")
-    # The first test is always the FC-QUIC test, and the second is always FCQUIC with FEC, the third is the baseline
+	# clean up the messy quotes that npf adds
+    data_df["IS_BASELINE"] = data_df["IS_BASELINE"].str.replace('"', "")
+    data_df["FEC_MODE"] = data_df["FEC_MODE"].str.replace('"', "")
 
-    df_fcquic = fcquic[1]
-    df_fcquic_fec = fcquic_fec[1]
-    df_baseline = baseline[1]
+    # filter dataframes based on IS_BASELINE and FEC_MODE, mappings:
+    # baseline: IS_BASELINE = "true"
+    # FCQUIC (no FEC): IS_BASELINE = "false" and FEC_MODE = "noredundancy"
+    # FCQUIC with FEC: IS_BASELINE = "false" and FEC_MODE = "constant"
+    df_baseline = data_df[data_df["IS_BASELINE"] == "true"]
+    df_fcquic = data_df[
+        (data_df["IS_BASELINE"] == "false") & (data_df["FEC_MODE"] == "noredundancy")
+    ]
+    df_fcquic_fec = data_df[
+        (data_df["IS_BASELINE"] == "false") & (data_df["FEC_MODE"] == "constant")
+    ]
+
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
+    len_fcquic_fec = len(df_fcquic_fec)
 
-    global_len = min(len_fcquic, len_baseline)
-    print(f"min length of the two dataframes: {global_len}")
+    print(f"Baseline samples: {len_baseline}")
+    print(f"FC-QUIC samples: {len_fcquic}")
+    print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
+
+    global_len = min(len_fcquic, len_baseline, len_fcquic_fec)
+    print(f"min length of the dataframes: {global_len}")
     df_fcquic = df_fcquic[:global_len]
+    df_fcquic_fec = df_fcquic_fec[:global_len]
     df_baseline = df_baseline[:global_len]
 
     sns.set_style("whitegrid")
@@ -74,8 +87,9 @@ def main(res_path):
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"cdf_{topo_name}.png", dpi=350, bbox_inches="tight")
-    plt.savefig(f"cdf_{topo_name}.svg", bbox_inches="tight")
+    poisson_str = "poisson" if is_poisson else "uniform"
+    plt.savefig(f"cdf_{topo_name}_{poisson_str}.png", dpi=350, bbox_inches="tight")
+    plt.savefig(f"cdf_{topo_name}_{poisson_str}.svg", bbox_inches="tight")
 
 
 if __name__ == "__main__":

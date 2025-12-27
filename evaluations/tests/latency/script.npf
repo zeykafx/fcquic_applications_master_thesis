@@ -1,4 +1,6 @@
-// # Note: This script was inspired by the evaluation script from Anthony Doeraene and NPF's documentation
+// # Note: This script was inspired by the evaluation script from Anthony Doeraene, as well as the following scripts from the FCQUIC's repo
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/scaling/scaling.npf
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
 
 %info
 FCQUIC App Latency test
@@ -10,7 +12,7 @@ result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE=true
-CONNECTION_SLEEP_LENGTH=10
+CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="trace"
 
 %variables
@@ -18,8 +20,8 @@ TOPO_CONF_NAME="medium_0%_loss"
 NUM_CLIENTS=4
 FALLBACK_DELAY=100
 {
-	FEC_MODE={"","constant","noredundancy"}
-	IS_BASELINE={"true","false","false"}
+	FEC_MODE={"constant","noredundancy", ""}
+	IS_BASELINE={"false","false","true"}
 	TEST_NBR={"0","1","2"}
 }
 // # This will 3 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC
@@ -223,13 +225,15 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
      	else
     		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/client${CLIENT_ID}.log
      		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC}
-      fi
+	    fi
 
 	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
 			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
-		fi
+	fi
+
+	sleep 0.01
 
     # store the pid of this client into the pids set
     pids[${CLIENT_ID}]=$!
