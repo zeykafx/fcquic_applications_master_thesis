@@ -24,6 +24,7 @@ DIR=./logs
 
 # looking for previous baseline run
 PREV_RUN_NBR_BASELINE=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
+PREV_RUN_NBR_TCP=$(find "${DIR}" -maxdepth 1 -type d -name '*_tcp' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 # looking for previous fcquic run
 PREV_RUN_NBR_FCQUIC_NO_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_no_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 PREV_RUN_NBR_FCQUIC_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
@@ -40,6 +41,19 @@ LOGS_BASE_DIR_BASELINE="${LOGS_BASE_DIR_BASELINE}_baseline"
 
 sudo mkdir ${LOGS_BASE_DIR_BASELINE}
 RUN_LOGS_DIR_BASELINE=${LOGS_BASE_DIR_BASELINE}
+
+
+# ------------ BASELINE TCP ------------
+
+# setup tcp logs directory
+PREV_RUN_NBR_TCP=${PREV_RUN_NBR_TCP:-0}
+CUR_RUN_TCP=$(echo "${PREV_RUN_NBR_TCP}+1" | bc)
+LOGS_BASE_DIR_TCP=${DIR}/${CUR_RUN_TCP}
+
+LOGS_BASE_DIR_TCP="${LOGS_BASE_DIR_TCP}_tcp"
+
+sudo mkdir ${LOGS_BASE_DIR_TCP}
+RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}
 
 # ------------ FCQUIC NO FEC ------------
 
@@ -64,6 +78,7 @@ sudo mkdir ${LOGS_BASE_DIR_FCQUIC_FEC}
 RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}
 
 echo "RUN_LOGS_DIR_BASELINE=${LOGS_BASE_DIR_BASELINE}"
+echo "RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}"
 echo "RUN_LOGS_DIR_FCQUIC_NO_FEC=${LOGS_BASE_DIR_FCQUIC_NO_FEC}"
 echo "RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}"
 
@@ -78,6 +93,7 @@ sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
     RUN_LOGS_DIR_FCQUIC_NO_FEC=$RUN_LOGS_DIR_FCQUIC_NO_FEC \
     RUN_LOGS_DIR_FCQUIC_FEC=$RUN_LOGS_DIR_FCQUIC_FEC \
     RUN_LOGS_DIR_BASELINE=$RUN_LOGS_DIR_BASELINE \
+    RUN_LOGS_DIR_TCP=$RUN_LOGS_DIR_TCP \
     CARGO_PATH=$CARGO_PATH \
     TOPO_CONF_NAME=$TOPO_CONF_NAME
 

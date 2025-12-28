@@ -5,3 +5,8 @@ evaluations/tests/latency/bin/*
 evaluations/tests/latency/cert.crt
 evaluations/tests/latency/cert.key
 evaluations/tests/latency/graphs/__pycache__/*
+
+evaluations/tests/latency/logs/*
+fcquic_chat/logs/*
+fcquic_chat/tcp_logs/*
+fcquic_chat/baseline_logs/*

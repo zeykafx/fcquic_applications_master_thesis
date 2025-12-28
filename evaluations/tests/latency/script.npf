@@ -19,15 +19,21 @@ BIN_LOG_LEVEL="trace"
 TOPO_CONF_NAME="medium_0%_loss"
 NUM_CLIENTS=4
 FALLBACK_DELAY=100
+// # {
+// # 	FEC_MODE={"constant","noredundancy", ""}
+// # 	IS_BASELINE={"false","false","true"}
+// # 	TEST_NBR={"0","1","2"}
+// # }
 {
-	FEC_MODE={"constant","noredundancy", ""}
-	IS_BASELINE={"false","false","true"}
-	TEST_NBR={"0","1","2"}
+	CURRENT_TEST={"QUIC","FCQUIC","FCQUIC_FEC","TCP"}
+	TEST_NBR={"0","1","2","3"}
 }
 // # This will 3 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC
 INTERVAL=1000
 POISSON="true"
 LAMBDA=1
+TCP_NODELAY="true"
+USE_SYSTEM_TIME="false"
 // # poisson:POISSON={"false","true"}
 // # poisson:FEC_MODE="constant"
 // # poisson:IS_BASELINE={"false","true"}
@@ -35,6 +41,7 @@ TEST_LENGTH=50
 PER_CLIENT_LAT_RESULTS=false
 WORKDIR=""
 RUN_LOGS_DIR_BASELINE="./logs"
+RUN_LOGS_DIR_TCP="./logs"
 RUN_LOGS_DIR_FCQUIC_NO_FEC="./logs"
 RUN_LOGS_DIR_FCQUIC_FEC="./logs"
 CARGO_PATH=""
@@ -86,10 +93,7 @@ cp ./cert.key $WORKDIR/evaluations/tests/latency/cert.key
 %script@topology autokill=false sudo=true
 cd $WORKDIR/evaluations/topologies
 
-# Do not setup the topology if we're running the FCQUIC test
-# basically, only setup the topology before the very first test
-# This is such a hack, but afaik there's no easy way to change a variable myself to know if the topo was setup already
-# (the var change doesn't stick in between tests)
+# Only setup the topo if we're running the first test
 if [[ "$TEST_NBR" == "0" ]]; then
 	echo "Setting up the topology"
 
@@ -140,36 +144,44 @@ cd $WORKDIR/evaluations/tests/latency
 
 echo "Starting server"
 
-if [ "$IS_BASELINE" = "true" ]; then
-
+if [ "$CURRENT_TEST" = "QUIC" ]; then
 	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/server.log
+	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
-
-	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC}/server.log
 
 	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
 		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
-else
+elif [ "$CURRENT_TEST" = "TCP" ]; then
+	LOG_FILENAME=${RUN_LOGS_DIR_TCP}/server.log
+	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+	touch ${LOG_FILENAME}
+
+	SERVER_ARGS=""
+    if [ "$TCP_NODELAY" = "true" ]; then
+   		SERVER_ARGS="--no-delay"
+    fi
+
+	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-server \
+		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} > ${LOG_FILENAME}  2>&1 &
+elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
 	# Use different log directories for the FEC and NO FEC tests runs
-	if [ "$FEC_MODE" = "constant" ]; then
-		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/server.log
-		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
-		touch ${LOG_FILENAME}
+	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/server.log
+	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+	touch ${LOG_FILENAME}
 
-		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
-		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
-		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &
-	else
-		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/server.log
-		echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
-		touch ${LOG_FILENAME}
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
+else
+	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/server.log
+	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+	touch ${LOG_FILENAME}
 
-		sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
-		 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
-		 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler ${FEC_MODE} > ${LOG_FILENAME}  2>&1 &
-	fi
-
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy > ${LOG_FILENAME}  2>&1 &
 fi
+
 echo "Server running!"
 
 echo "EVENT server-up"
@@ -208,14 +220,28 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
     if [ "$POISSON" = "true" ]; then
     	CLIENT_ARGS="$CLIENT_ARGS --poisson --lambda ${LAMBDA}"
     fi
+    if [ "$USE_SYSTEM_TIME" = "true" ]; then
+    	CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
+    fi
 
-    if [ "$IS_BASELINE" = "true" ]; then
+    if [ "$CURRENT_TEST" = "QUIC" ]; then
     	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/client${CLIENT_ID}.log
 
 		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
 			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
 			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+	elif [ "$CURRENT_TEST" = "TCP" ]; then
+		LOG_FILENAME=${RUN_LOGS_DIR_TCP}/client${CLIENT_ID}.log
+
+	    if [ "$TCP_NODELAY" = "true" ]; then
+	    	CLIENT_ARGS="$CLIENT_ARGS --no-delay"
+	    fi
+
+		sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-client https://10.10.0.2:4433 \
+		-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+		--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+		--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
     else
     	if [ "$FEC_MODE" = "constant" ]; then
    			LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/client${CLIENT_ID}.log
