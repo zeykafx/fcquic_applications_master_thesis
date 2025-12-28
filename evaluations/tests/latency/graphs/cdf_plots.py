@@ -23,35 +23,36 @@ def main(res_path):
     is_poisson = data_df["POISSON"][0] == "true"
     print(f"is poisson?: {is_poisson}")
 
-	# clean up the messy quotes that npf adds
-    data_df["IS_BASELINE"] = data_df["IS_BASELINE"].str.replace('"', "")
-    data_df["FEC_MODE"] = data_df["FEC_MODE"].str.replace('"', "")
+    # clean up the messy quotes that npf adds
+    data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
+    # data_df["FEC_MODE"] = data_df["FEC_MODE"].str.replace('"', "")
 
-    # filter dataframes based on IS_BASELINE and FEC_MODE, mappings:
-    # baseline: IS_BASELINE = "true"
-    # FCQUIC (no FEC): IS_BASELINE = "false" and FEC_MODE = "noredundancy"
-    # FCQUIC with FEC: IS_BASELINE = "false" and FEC_MODE = "constant"
-    df_baseline = data_df[data_df["IS_BASELINE"] == "true"]
-    df_fcquic = data_df[
-        (data_df["IS_BASELINE"] == "false") & (data_df["FEC_MODE"] == "noredundancy")
-    ]
-    df_fcquic_fec = data_df[
-        (data_df["IS_BASELINE"] == "false") & (data_df["FEC_MODE"] == "constant")
-    ]
+    # filter dataframes based on CURRENT_TEST, mappings:
+    # QUIC: CURRENT_TEST = "QUIC"
+    # FCQUIC (no FEC): CURRENT_TEST = "FCQUIC"
+    # FCQUIC with FEC: CURRENT_TEST = "FCQUIC_FEC"
+    # TCP: CURRENT_TEST = "TCP"
+    df_baseline = data_df[data_df["CURRENT_TEST"] == "QUIC"]
+    df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
+    df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
+    df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
 
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
     len_fcquic_fec = len(df_fcquic_fec)
+    len_tcp = len(df_tcp)
 
-    print(f"Baseline samples: {len_baseline}")
+    print(f"Baseline QUIC samples: {len_baseline}")
+    print(f"Baseline TCP samples: {len_tcp}")
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
 
-    global_len = min(len_fcquic, len_baseline, len_fcquic_fec)
+    global_len = min(len_fcquic, len_baseline, len_fcquic_fec, len_tcp)
     print(f"min length of the dataframes: {global_len}")
     df_fcquic = df_fcquic[:global_len]
     df_fcquic_fec = df_fcquic_fec[:global_len]
     df_baseline = df_baseline[:global_len]
+    df_tcp = df_baseline[:global_len]
 
     sns.set_style("whitegrid")
     plt.figure(figsize=(8, 6))
@@ -76,6 +77,13 @@ def main(res_path):
         label="Baseline QUIC",
         color=COLORS[2],
         linestyle=LINESTYLES[3],
+        lw=LINEWIDTH,
+    )
+    plt.ecdf(
+        (df_tcp["y_LATENCY"] / 1000),
+        label="Baseline TCP",
+        color=COLORS[4],
+        linestyle=LINESTYLES[4],
         lw=LINEWIDTH,
     )
     plt.ylabel("Probability of occurence", fontsize=12)
