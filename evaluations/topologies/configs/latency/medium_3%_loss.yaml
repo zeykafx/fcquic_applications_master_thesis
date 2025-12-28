@@ -7,10 +7,10 @@ topology:
             name_prefix: "r"
 
         links:
-            bandwidth: "30Mbit"
+            bandwidth: "100Mbit"
             loss: "3%"
             burst: "15%"
-            delay: "3ms"
+            delay: "10ms"
             buffer: 100000
             multicast: true
 
