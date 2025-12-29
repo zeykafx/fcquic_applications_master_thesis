@@ -1,7 +1,6 @@
 from ipaddress import IPv4Network
 
 
-
 class PimGlobal:
     def __init__(self):
         self.ssm_range = None

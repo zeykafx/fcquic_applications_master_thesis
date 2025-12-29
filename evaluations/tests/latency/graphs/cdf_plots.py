@@ -83,7 +83,7 @@ def main(res_path):
     )
     plt.ecdf(
         (df_tcp["y_LATENCY"] / 1000),
-        label="Baseline TCP",
+        label="Baseline TCP (TLS)",
         color=COLORS[4],
         linestyle=LINESTYLES[4],
         lw=LINEWIDTH,

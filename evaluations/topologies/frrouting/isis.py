@@ -10,11 +10,12 @@ class IsisGlobal:
         if self.id is not None:
             s += "router isis 1\n"
             s += "  is-type level-1\n"
-            s += F"  net 49.0000.0000.0000.{str(self.id).zfill(4)}.00\n"
+            s += f"  net 49.0000.0000.0000.{str(self.id).zfill(4)}.00\n"
             s += "  lsp-timers level-1 gen-interval 5 refresh-interval 10 max-lifetime 1200\n"
             s += "  spf-interval 5\n"
             s += "exit"
         return s
+
 
 class IsisInterface:
     def __init__(self):
@@ -22,11 +23,11 @@ class IsisInterface:
         self.enabled_bfd = False
         self.weight = None
         self.passive = None
-        
+
     def enable(self, weight: int = 1):
         self.enabled = True
         self.weight = weight
-    
+
     def set_passive(self):
         self.passive = True
 

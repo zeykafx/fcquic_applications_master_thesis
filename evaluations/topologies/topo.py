@@ -117,7 +117,6 @@ class Topology:
 
     def _has_multicast_disabled(self, node: str):
         for _, _, info in self.graph.edges(node, data=True):
-
             if info.get("multicast") is False:
                 return True
         return False
@@ -162,7 +161,7 @@ class Topology:
                 multicast_disabled = info.get("multicast") is False
                 color = "red" if multicast_disabled else "black"
                 penwidth = "2.0" if multicast_disabled else "1.0"
-                
+
                 # display loss rate and the delay on the label if it's higher than 0% and 0ms
                 loss_rate = info.get("loss_percentage")
                 delay = info.get("delay")

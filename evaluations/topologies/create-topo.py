@@ -2,9 +2,12 @@
 # Modifications made by Corentin Detry
 
 import argparse
+import json
 import os
+import subprocess
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
+from time import sleep
 
 import yaml
 from topo import Topology
@@ -278,6 +281,95 @@ def configure_link(
     return link_ctr, tc_info, ips
 
 
+def run_cmd(cmd) -> str | None:
+    try:
+        result = subprocess.run(
+            cmd, shell=True, check=True, capture_output=True, text=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {e}")
+    return None
+
+
+def ping_node(source_ns, node_ip, count=5, interval=0.1):
+    out = run_cmd(
+        f"sudo ip netns exec {source_ns} ping {node_ip} -c {count} -i {interval}"
+    )
+    if out is None:
+        return False
+
+    return "0% packet loss" in out
+
+
+def check_rp_decided(topo):
+    # check on the running topology that the router designated as RP is indeed chosen as the RP
+    pass
+
+
+# TODO: finish later
+# def check_convergence(topo) -> bool:
+#     # nodes = {}
+#     # for node in topo.graph.nodes():
+#     #     if not topo._is_router(node):
+#     #         ip = topo._get_node_ip(node)
+#     #         nodes[node] = ip
+
+#     nodes = {
+#         node: topo._get_node_ip(node)
+#         for node in topo.graph.nodes()
+#         if not topo._is_router(node)
+#     }
+
+#     for node, ip in nodes.items():
+#         for other, other_ip in node.items():
+#             if other != node:
+#                 res = ping_node(node, other_ip)
+
+
+def wait_isis_convergence(topo) -> bool:
+    # return True when isis has converged
+    routers_status = {
+        node: False for node in topo.graph.nodes() if topo._is_router(node)
+    }
+
+    # While not all of the router's interfaces are up, keep waiting
+    while not all(routers_status.values()):
+        for node, _info in topo.graph.nodes(data=True):
+            if topo._is_router(node) and not routers_status[node]:
+                router_ifaces_up = check_router_isis_interfaces(node)
+
+                if verbose:
+                    print(f"Router {node} status: {router_ifaces_up}")
+                if router_ifaces_up:
+                    routers_status[node] = True
+
+        sleep(0.5)
+
+    if verbose:
+        print("All router's ISIS interfaces are up")
+    return all(routers_status.values())
+
+
+def check_router_isis_interfaces(router) -> bool:
+    # returns True if all oft the router's ISIS interfaces are up
+
+    cmd = f"vtysh -N {router} -c 'show isis interface json'"
+    result = run_cmd(cmd)
+
+    if result is None:
+        return False
+
+    res_obj = json.loads(result)
+
+    for area in res_obj["areas"]:
+        for circuit in area["circuits"]:
+            if circuit["interface"]["state"] != "Up":
+                return False
+
+    return True
+
+
 def main():
     global verbose
     parser = argparse.ArgumentParser("topo")
@@ -294,6 +386,11 @@ def main():
         "--preview",
         action="store_true",
         help="Create the topology but don't run it, useful to check syntax or diagram",
+    )
+    parser.add_argument(
+        "--convergence",
+        action="store_true",
+        help="Wait for the topology to converge",
     )
 
     args = parser.parse_args()
@@ -402,6 +499,8 @@ def main():
             print("Topology running")
 
         print()
+
+        wait_isis_convergence(topo)
 
         print(f"RP/BSR Router ID: {default_rp_id}")
         print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tMulticast")

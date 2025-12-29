@@ -5,6 +5,7 @@ from .ip import *
 from .bfd import *
 from ipaddress import IPv4Address, IPv4Network
 
+
 @dataclass
 class GlobalConf:
     pim: PimGlobal = field(default_factory=PimGlobal)
@@ -21,6 +22,7 @@ class GlobalConf:
                 s += "\n"
         return s
 
+
 @dataclass
 class InterfaceConf:
     pim: PimInterface = field(default_factory=PimInterface)
@@ -35,15 +37,16 @@ class InterfaceConf:
                 s += conf
         return s
 
+
 @dataclass
 class FRRouting:
     glb: GlobalConf = field(default_factory=GlobalConf)
     interfaces: dict[str, InterfaceConf] = field(default_factory=dict)
 
     def __str__(self):
-        s = F"{str(self.glb)}\n"
-        for (interface, conf) in self.interfaces.items():
-            s += F"interface {interface}\n"
+        s = f"{str(self.glb)}\n"
+        for interface, conf in self.interfaces.items():
+            s += f"interface {interface}\n"
             s += str(conf)
             s += "exit\n"
         return s
@@ -53,6 +56,7 @@ class FRRouting:
 
     def get_interface(self, interface):
         return self.interfaces[interface]
+
 
 if __name__ == "__main__":
     conf = FRRouting()

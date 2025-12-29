@@ -1,5 +1,6 @@
 from ipaddress import IPv4Network
 
+
 class BfdGlobal:
     def __init__(self):
         self.peers = None
@@ -8,10 +9,10 @@ class BfdGlobal:
         self.peers = peers
 
     def __str__(self):
-        s  = ""
+        s = ""
         if self.peers is not None:
-            s += F"bfd\n"
+            s += f"bfd\n"
             for peer in self.peers:
-                s += F"  peer {peer}\n  exit\n"
-            s += F"exit"
+                s += f"  peer {peer}\n  exit\n"
+            s += f"exit"
         return s
