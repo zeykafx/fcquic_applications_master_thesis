@@ -20,7 +20,9 @@ def main(res_path):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
-    is_poisson = data_df["POISSON"][0] == "true"
+    poisson = str(data_df["POISSON"][0]).replace('"', "")
+    is_poisson = poisson == "true"
+    poisson_str = "poisson" if is_poisson else "uniform"
     print(f"is poisson?: {is_poisson}")
 
     # clean up the messy quotes that npf adds
@@ -49,10 +51,10 @@ def main(res_path):
 
     global_len = min(len_fcquic, len_baseline, len_fcquic_fec, len_tcp)
     print(f"min length of the dataframes: {global_len}")
-    df_fcquic = df_fcquic[:global_len]
-    df_fcquic_fec = df_fcquic_fec[:global_len]
-    df_baseline = df_baseline[:global_len]
-    df_tcp = df_baseline[:global_len]
+    # df_fcquic = df_fcquic[:global_len]
+    # df_fcquic_fec = df_fcquic_fec[:global_len]
+    # df_baseline = df_baseline[:global_len]
+    # df_tcp = df_tcp[:global_len]
 
     sns.set_style("whitegrid")
     plt.figure(figsize=(8, 6))
@@ -86,8 +88,9 @@ def main(res_path):
         linestyle=LINESTYLES[4],
         lw=LINEWIDTH,
     )
+
     plt.ylabel("Probability of occurence", fontsize=12)
-    plt.title("Cumulative distribution of latency", fontsize=14)
+    plt.title(f"Cumulative distribution of latency ({poisson_str})", fontsize=14)
     plt.xlabel("Latency (ms)", fontsize=12)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
@@ -95,7 +98,6 @@ def main(res_path):
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    poisson_str = "poisson" if is_poisson else "uniform"
     plt.savefig(f"cdf_{topo_name}_{poisson_str}.png", dpi=350, bbox_inches="tight")
     plt.savefig(f"cdf_{topo_name}_{poisson_str}.svg", bbox_inches="tight")
 

@@ -1,15 +1,23 @@
 
 # use a default topology name if no argument is provided, otherwise use the provided argument as the topo name
 TOPO_CONF_NAME="medium_0%_loss"
+USE_POISSON="true"
 if [ $# -gt 0 ]; then
 	TOPO_CONF_NAME="$1"
+	USE_POISSON="$2"
 fi
 
-echo "Running tests for topology: ${TOPO_CONF_NAME}"
+POISSON_STR="poisson"
+if [ "$USE_POISSON" = "false" ]; then
+	POISSON_STR="uniform"
+fi
+
+
+echo "Running tests for topology: ${TOPO_CONF_NAME}, Sending with: ${POISSON_STR}"
 
 CARGO_PATH=$(which cargo)
 WORKDIR=$(pwd)/..
-RESULT_FILENAME="npf_out_${TOPO_CONF_NAME}"
+RESULT_FILENAME="npf_out_${TOPO_CONF_NAME}_${POISSON_STR}"
 
 # Killing any server or client application still running
 sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec server"

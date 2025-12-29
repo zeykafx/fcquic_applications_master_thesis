@@ -10,7 +10,7 @@ topology:
             bandwidth: "100Mbit"
             loss: "1%"
             burst: "15%"
-            delay: "0ms"
+            delay: "3ms"
             buffer: 100000
             multicast: true
 

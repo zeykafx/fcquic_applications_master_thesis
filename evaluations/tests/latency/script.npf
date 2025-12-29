@@ -30,7 +30,7 @@ FALLBACK_DELAY=100
 }
 // # This will 3 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC
 INTERVAL=1000
-POISSON="false"
+POISSON="true"
 LAMBDA=1
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
@@ -66,12 +66,12 @@ echo "Building project"
 
 if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    $CARGO_PATH build --release > /dev/null 2> /dev/null
+    $CARGO_PATH build --release --opt-level 3 > /dev/null 2> /dev/null
 
    	cp ./target/release/quic-server $WORKDIR/evaluations/tests/latency/bin/quic-server
     cp ./target/release/quic-client $WORKDIR/evaluations/tests/latency/bin/quic-client
-   	cp ./target/release/quic-server $WORKDIR/evaluations/tests/latency/bin/tcp-server
-    cp ./target/release/quic-client $WORKDIR/evaluations/tests/latency/bin/tcp-client
+   	cp ./target/release/tcp-server $WORKDIR/evaluations/tests/latency/bin/tcp-server
+    cp ./target/release/tcp-client $WORKDIR/evaluations/tests/latency/bin/tcp-client
    	cp ./target/release/server $WORKDIR/evaluations/tests/latency/bin/server
     cp ./target/release/client $WORKDIR/evaluations/tests/latency/bin/client
 else
@@ -80,8 +80,8 @@ else
 
    	cp ./target/debug/quic-server $WORKDIR/evaluations/tests/latency/bin/quic-server
     cp ./target/debug/quic-client $WORKDIR/evaluations/tests/latency/bin/quic-client
-   	cp ./target/release/quic-server $WORKDIR/evaluations/tests/latency/bin/tcp-server
-    cp ./target/release/quic-client $WORKDIR/evaluations/tests/latency/bin/tcp-client
+   	cp ./target/debug/tcp-server $WORKDIR/evaluations/tests/latency/bin/tcp-server
+    cp ./target/debug/tcp-client $WORKDIR/evaluations/tests/latency/bin/tcp-client
    	cp ./target/debug/server $WORKDIR/evaluations/tests/latency/bin/server
     cp ./target/debug/client $WORKDIR/evaluations/tests/latency/bin/client
 fi
@@ -279,7 +279,7 @@ done
 
 
 # only output the tests-done event when we finished running the last test
-if [ "$TEST_NBR" = "2" ]; then
+if [ "$TEST_NBR" = "3" ]; then
 	echo "EVENT tests-done"
 else
 	echo "EVENT clients-done"
