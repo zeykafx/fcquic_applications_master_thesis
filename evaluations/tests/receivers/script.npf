@@ -3,7 +3,7 @@
 // # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
 
 %info
-FCQUIC App Latency test
+FCQUIC vs QUIC vs TCP Receivers test
 
 %config
 n_runs=1
@@ -12,20 +12,22 @@ result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE=true
-CONNECTION_SLEEP_LENGTH=2
+CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="trace"
 
 %variables
-TEST_DIR_NAME="latency"
-TOPO_CONF_NAME="medium_0%_loss"
-NUM_CLIENTS=4
+TEST_DIR_NAME="receivers"
+TOPO_CONF_NAME="smaller_receivers"
 FALLBACK_DELAY=100
-{
-	CURRENT_TEST={"QUIC","FCQUIC","FCQUIC_FEC","TCP"}
-	TEST_NBR={"0","1","2","3"}
-}
+CURRENT_TEST={"FCQUIC_FEC","QUIC","TCP"}
+NUM_CLIENTS={3,5,7}
+// # NUM_CLIENTS={3,5,7,9,11}
+// # {
+// # 	CURRENT_TEST={"QUIC","FCQUIC","FCQUIC_FEC","TCP"}
+// # 	TEST_NBR={"0","1","2","3"}
+// # }
 // # This will 4 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC, TCP (with TLS)
-INTERVAL=1000
+INTERVAL=500
 POISSON="true"
 LAMBDA=1
 TCP_NODELAY="true"
@@ -90,49 +92,9 @@ cp ./cert.crt $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.crt
 cp ./cert.key $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.key
 
 
-// ------------------------ Topology Setup ------------------------
-%script@topology autokill=false sudo=true
-cd $WORKDIR/evaluations/topologies
-
-# Only setup the topo if we're running the first test
-if [[ "$TEST_NBR" == "0" ]]; then
-	echo "Setting up the topology"
-
-	sudo python3 ./create-topo.py ./configs/${TEST_DIR_NAME}/${TOPO_CONF_NAME}.yaml setup
-
-	echo "Set up topologies, now waiting for convergence"
-
-	# code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
-
-	CLIENT_ID_CONVERGENCE_TEST=$(echo ${NUM_CLIENTS} - 1 | bc)
-	echo "Testing convergence from client${CLIENT_ID_CONVERGENCE_TEST}"
-
-	converged=false
-	while [ $converged != "true" ]; do
-	    ping_res=$(ip netns exec client${CLIENT_ID_CONVERGENCE_TEST} ping 10.10.0.2 -i 0.1 -c 5)
-	    errors=$(echo "$ping_res" | grep 'error')
-	    losses=$(echo "$ping_res" | grep 'packet loss' | cut -f6 -d' ')
-	    losses=${losses%\%}
-	    if [ -z "$errors" -a "$losses" -lt 5 ]; then
-	        converged=true
-	    else
-	        echo "Waiting for convergence"
-	    fi
-	done
-
-	echo "Topology setup and IS-IS converged"
-
-	# wait even more for everything to converge
-	sleep 10
-else
-	echo "Topo already setup, skipping setup"
-fi
-
-echo "EVENT topo-setup"
-
 // ------------------------ SERVER ------------------------
-// Wait for the topology setup event to fire
-%script@server waitfor=topo-setup sudo=true
+// %script@server waitfor=topo-setup sudo=true
+%script@server sudo=true
 
 # Killing any server or client application still running
 pkill quic-client || true
@@ -148,6 +110,9 @@ cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
 echo "Starting server"
 
 if [ "$CURRENT_TEST" = "QUIC" ]; then
+	RUN_LOGS_DIR_BASELINE="${RUN_LOGS_DIR_BASELINE}/${NUM_CLIENTS}"
+	mkdir ${RUN_LOGS_DIR_BASELINE} 2> /dev/null
+
 	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/server.log
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
@@ -155,6 +120,9 @@ if [ "$CURRENT_TEST" = "QUIC" ]; then
 	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_BASELINE} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
 		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
 elif [ "$CURRENT_TEST" = "TCP" ]; then
+	RUN_LOGS_DIR_TCP="${RUN_LOGS_DIR_TCP}/${NUM_CLIENTS}"
+	mkdir ${RUN_LOGS_DIR_TCP} 2> /dev/null
+
 	LOG_FILENAME=${RUN_LOGS_DIR_TCP}/server.log
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
@@ -167,6 +135,9 @@ elif [ "$CURRENT_TEST" = "TCP" ]; then
 	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-server \
 		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} > ${LOG_FILENAME}  2>&1 &
 elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
+	RUN_LOGS_DIR_FCQUIC_FEC="${RUN_LOGS_DIR_FCQUIC_FEC}/${NUM_CLIENTS}"
+	mkdir ${RUN_LOGS_DIR_FCQUIC_FEC} 2> /dev/null
+
 	# Use different log directories for the FEC and NO FEC tests runs
 	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC}/server.log
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
@@ -176,6 +147,9 @@ elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
 	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
 else
+	RUN_LOGS_DIR_FCQUIC_NO_FEC="${RUN_LOGS_DIR_FCQUIC_NO_FEC}/${NUM_CLIENTS}"
+	mkdir ${RUN_LOGS_DIR_FCQUIC_NO_FEC} 2> /dev/null
+
 	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC}/server.log
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
@@ -202,6 +176,11 @@ pkill tcp-client || true
 pkill client || true
 
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
+
+RUN_LOGS_DIR_BASELINE="${RUN_LOGS_DIR_BASELINE}/${NUM_CLIENTS}"
+RUN_LOGS_DIR_TCP="${RUN_LOGS_DIR_TCP}/${NUM_CLIENTS}"
+RUN_LOGS_DIR_FCQUIC_FEC="${RUN_LOGS_DIR_FCQUIC_FEC}/${NUM_CLIENTS}"
+RUN_LOGS_DIR_FCQUIC_NO_FEC="${RUN_LOGS_DIR_FCQUIC_NO_FEC}/${NUM_CLIENTS}"
 
 echo "Starting clients"
 pids=()
@@ -276,21 +255,4 @@ for pid in ${pids[*]}; do
     wait $pid
 done
 
-
-
-# only output the tests-done event when we finished running the last test
-if [ "$TEST_NBR" = "3" ]; then
-	echo "EVENT tests-done"
-else
-	echo "EVENT clients-done"
-fi
-
-%script@teardown waitfor=tests-done autokill=false sudo=true
-
-cd $WORKDIR/evaluations/topologies
-
-echo "Tearing down the topology in ${TEST_DIR_NAME}/${TOPO_CONF_NAME}"
-sudo python3 ./create-topo.py ./configs/${TEST_DIR_NAME}/${TOPO_CONF_NAME}.yaml teardown
-
-echo "Done tearing down the topology"
-sleep 10
+echo "EVENT clients-done"

@@ -497,10 +497,9 @@ def main():
         if not args.preview:
             topo.run()
             print("Topology running")
+            wait_isis_convergence(topo)
 
         print()
-
-        wait_isis_convergence(topo)
 
         print(f"RP/BSR Router ID: {default_rp_id}")
         print("Name\t\tIP\t\tBW\tLOSS\tDELAY\tBUFFER\tMulticast")

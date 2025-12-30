@@ -133,7 +133,10 @@ class Topology:
             if self._is_router(node):
                 # when disabling multicast for a router, the pim router section will not has "use_asm" set to true
                 multicast_disabled = not self.get_conf(node).glb.pim.use_asm
-                fillcolor = "lightcoral" if multicast_disabled else "lightblue"
+                fillcolor = "lightblue"
+                if multicast_disabled:
+                    fillcolor = "lightcoral"
+
                 dot.node(
                     node, node, shape="circle", style="filled", fillcolor=fillcolor
                 )

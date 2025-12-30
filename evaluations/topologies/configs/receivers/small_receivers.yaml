@@ -15,15 +15,12 @@ topology:
             multicast: true
 
     routers:
-        num: 5
+        num: 4
         links:
             - endpoints: ["r1", "r2"]
             - endpoints: ["r2", "r3"]
             - endpoints: ["r2", "r4"]
-            - endpoints: ["r2", "r5"]
             # - endpoints: ["r3", "r4"]
-            - endpoints: ["r4", "r5"]
-            - endpoints: ["r3", "r5"]
 
     servers: ["server1"]
     clients:
@@ -40,14 +37,14 @@ topology:
         - endpoints: ["r3", "client2"]
         - endpoints: ["r4", "client3"]
 
-        - endpoints: ["r5", "client4"]
-        - endpoints: ["r5", "client5"]
+        - endpoints: ["r3", "client4"]
+        - endpoints: ["r4", "client5"]
 
         - endpoints: ["r3", "client6"]
         - endpoints: ["r4", "client7"]
 
-        - endpoints: ["r2", "client8"]
-        - endpoints: ["r5", "client9"]
+        - endpoints: ["r3", "client8"]
+        - endpoints: ["r4", "client9"]
 
         - endpoints: ["r3", "client10"]
         - endpoints: ["r4", "client11"]

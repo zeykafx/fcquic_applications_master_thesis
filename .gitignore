@@ -1,12 +1,19 @@
 evaluations/topologies/frrouting/__pycache__/*
 evaluations/topologies/__pycache__/*
 evaluations/venv/*
+
 evaluations/tests/latency/bin/*
-evaluations/tests/latency/cert.crt
-evaluations/tests/latency/cert.key
+evaluations/tests/latency/logs/*
+
+evaluations/graphs/__pycache__/*
 evaluations/tests/latency/graphs/__pycache__/*
 
-evaluations/tests/latency/logs/*
+evaluations/tests/receivers/bin/*
+evaluations/tests/receivers/logs/*
+
+**/cert.crt
+**/cert.key
+
 fcquic_chat/logs/*
 fcquic_chat/tcp_logs/*
 fcquic_chat/baseline_logs/*

@@ -1,5 +1,6 @@
 
 # use a default topology name if no argument is provided, otherwise use the provided argument as the topo name
+TOPO_CONF_DIR="latency"
 TOPO_CONF_NAME="medium_0%_loss"
 USE_POISSON="false"
 if [ $# -gt 0 ]; then
@@ -13,7 +14,7 @@ if [ "$USE_POISSON" = "false" ]; then
 fi
 
 
-echo "Running tests for topology: ${TOPO_CONF_NAME}, Sending with: ${POISSON_STR}"
+echo "Running tests for topology: ${TOPO_CONF_DIR}/${TOPO_CONF_NAME}, Sending with: ${POISSON_STR}"
 
 CARGO_PATH=$(which cargo)
 WORKDIR=$(pwd)/..
@@ -25,7 +26,7 @@ sudo pkill -f "sudo ip netns exec client" && sudo pkill -f "sudo ip netns exec s
 
 echo "Setting up logs directory"
 
-cd $WORKDIR/evaluations/tests/latency
+cd $WORKDIR/evaluations/tests/${TOPO_CONF_DIR}
 
 sudo mkdir ./logs 2> /dev/null
 DIR=./logs
@@ -94,8 +95,8 @@ cd $WORKDIR/evaluations
 
 # ---------------- Running npf script ----------------
 
-sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
-    --single-output ./tests/latency/out/${RESULT_FILENAME}.csv \
+sudo -E ./venv/bin/npf-run --test ./tests/${TOPO_CONF_DIR}/script.npf \
+    --single-output ./tests/${TOPO_CONF_DIR}/out/${RESULT_FILENAME}.csv \
     --no-graph --force-retest \
     --variables WORKDIR=$WORKDIR \
     RUN_LOGS_DIR_FCQUIC_NO_FEC=$RUN_LOGS_DIR_FCQUIC_NO_FEC \
@@ -107,14 +108,13 @@ sudo -E ./venv/bin/npf-run --test ./tests/latency/script.npf \
     POISSON="$USE_POISSON"
 
 
-# The line "$@" allows us to pass the remaning arguments from this script to the npf script
 
 # ---------------- Plots ----------------
 
 echo "Graphing results"
 
-cd $WORKDIR/evaluations/tests/latency/graphs
+cd $WORKDIR/evaluations/graphs
 
-./cdf_plots.py ../out/${RESULT_FILENAME}.csv
+./latency_cdf.py ../tests/${TOPO_CONF_DIR}/out/${RESULT_FILENAME}.csv ../tests/${TOPO_CONF_DIR}/graphs
 
 echo "Plots written"
