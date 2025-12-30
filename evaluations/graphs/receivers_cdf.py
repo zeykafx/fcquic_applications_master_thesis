@@ -25,7 +25,7 @@ def dir_path(path):
 
 def plot_avg_lat(
     data_df,
-    num_clients,
+    clients_range_str,
     out_path,
     topo_name,
     poisson_str,
@@ -43,17 +43,18 @@ def plot_avg_lat(
         markersize=12,
         dashes=True,
         alpha=1,
-        hue_order=["TCP", "FCQUIC_FEC", "QUIC"],
+        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC"],
     )
     plt.xlabel("Number of clients")
     plt.ylabel("Average Latency (µs)")
     plt.ylim(bottom=5000)
+    # plt.ylim(bottom=0)
     # plt.xticks(num_clients)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
     plt.savefig(
-        f"{out_path}/avg_lat_{topo_name}_{poisson_str}.png",
+        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
         dpi=350,
         bbox_inches="tight",
     )
@@ -74,7 +75,7 @@ def plot_cdfs(
         hue=data_df["CURRENT_TEST"],
         palette="Set2",
         col=data_df["NUM_CLIENTS"],
-        hue_order=["TCP", "FCQUIC_FEC", "QUIC"],
+        hue_order=["TCP", "FCQUIC_FEC","FCQUIC", "QUIC"],
         height=5,
         aspect=0.8,
     )
@@ -117,7 +118,7 @@ def main(res_path, out_path):
         f"Number of clients for this test: {num_clients} -> range: {clients_range_str}"
     )
 
-    plot_avg_lat(data_df, num_clients, out_path, topo_name, poisson_str)
+    plot_avg_lat(data_df, clients_range_str, out_path, topo_name, poisson_str)
 
     plot_cdfs(data_df, clients_range_str, out_path, topo_name, poisson_str)
 

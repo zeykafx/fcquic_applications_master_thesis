@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ipaddress import IPv4Address, IPv4Network
 
 import graphviz
@@ -183,9 +184,15 @@ class Topology:
         dot.render(cleanup=True)
 
     def _create_node(self, node: str):
-        subprocess.run(["ip", "netns", "add", f"{node}"])
         subprocess.run(
-            ["ip", "netns", "exec", f"{node}", "ip", "link", "set", "dev", "lo", "up"]
+            ["ip", "netns", "add", f"{node}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["ip", "netns", "exec", f"{node}", "ip", "link", "set", "dev", "lo", "up"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
     def _create_link(self, node1, node2, data):
@@ -230,22 +237,18 @@ class Topology:
         )
 
     def _add_ips(self, node):
+        commands = []
         for _, _, info in self.graph.edges(node, data=True):
             if "ip" in info:
-                subprocess.run(
-                    [
-                        "ip",
-                        "netns",
-                        "exec",
-                        f"{node}",
-                        "ip",
-                        "addr",
-                        "add",
-                        f"{info['ip']}/{info['prefix']}",
-                        "dev",
-                        f"{info['itf']}",
-                    ]
+                commands.append(
+                    f"ip addr add {info['ip']}/{info['prefix']} dev {info['itf']}"
                 )
+
+        if len(commands) > 0:
+            full_cmd = " && ".join(commands)
+            subprocess.run(
+                ["ip", "netns", "exec", f"{node}", "sh", "-c", full_cmd], check=True
+            )
 
     def _set_netem(self, node, data):
         delay = data.get("delay", "0ms")
@@ -385,26 +388,72 @@ class Topology:
         shutil.rmtree(f"/etc/frr/{node}")
         os.remove(f"{node}.conf")
 
+    # def run(self):
+    #     for node in self.graph.nodes:
+    #         self._create_node(node)
+
+    #     for node1, node2, info in self.graph.edges(data=True):
+    #         if node1 > node2:
+    #             continue
+    #         self._create_link(node1, node2, info)
+
+    #     for node1, _, info in self.graph.edges(data=True):
+    #         self._set_netem(node1, info)
+
+    #     for node, info in self.graph.nodes(data=True):
+    #         self._add_ips(node)
+    #         if self._is_router(node):
+    #             self._configure_loopback(node)
+    #             self._dump_conf(node)
+    #             self._start_frrouting(node)
+    #         else:
+    #             self._add_route(node)
+
     def run(self):
-        for node in self.graph.nodes:
-            self._create_node(node)
+        max_workers = min(32, (os.cpu_count() or 1) * 4)
 
-        for node1, node2, info in self.graph.edges(data=True):
-            if node1 > node2:
-                continue
-            self._create_link(node1, node2, info)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # create all nodes in parallel
+            node_futures = [
+                executor.submit(self._create_node, node) for node in self.graph.nodes
+            ]
+            for future in as_completed(node_futures):
+                future.result()
 
-        for node1, _, info in self.graph.edges(data=True):
-            self._set_netem(node1, info)
+            # create links in parallel
+            link_futures = []
+            for node1, node2, info in self.graph.edges(data=True):
+                if node1 > node2:
+                    continue
+                link_futures.append(
+                    executor.submit(self._create_link, node1, node2, info)
+                )
+            for future in as_completed(link_futures):
+                future.result()
 
-        for node, info in self.graph.nodes(data=True):
-            self._add_ips(node)
-            if self._is_router(node):
-                self._configure_loopback(node)
-                self._dump_conf(node)
-                self._start_frrouting(node)
-            else:
-                self._add_route(node)
+            # set netem in parallel
+            netem_futures = [
+                executor.submit(self._set_netem, node1, info)
+                for node1, _, info in self.graph.edges(data=True)
+            ]
+            for future in as_completed(netem_futures):
+                future.result()
+
+            # dd ips and configure nodes in parallel
+            config_futures = []
+            for node, info in self.graph.nodes(data=True):
+                config_futures.append(executor.submit(self._configure_node, node, info))
+            for future in as_completed(config_futures):
+                future.result()
+
+    def _configure_node(self, node, _):
+        self._add_ips(node)
+        if self._is_router(node):
+            self._configure_loopback(node)
+            self._dump_conf(node)
+            self._start_frrouting(node)
+        else:
+            self._add_route(node)
 
     def _teardown_node(self, node: str):
         subprocess.run(["ip", "netns", "del", f"{node}"])
@@ -412,5 +461,9 @@ class Topology:
     def teardown(self):
         for node in self.graph.nodes:
             if self._is_router(node):
-                self._stop_frrouting(node)
+                try:
+                    self._stop_frrouting(node)
+                except Exception as e:
+                    print(e)
+                    continue
             self._teardown_node(node)
