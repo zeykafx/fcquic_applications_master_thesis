@@ -12,22 +12,23 @@ result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE=true
-CONNECTION_SLEEP_LENGTH=1
-BIN_LOG_LEVEL="trace"
+CONNECTION_SLEEP_LENGTH=0
+BIN_LOG_LEVEL="warn"
 
 %variables
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="smaller_receivers"
-FALLBACK_DELAY=100
+FALLBACK_DELAY=200
 CURRENT_TEST={"FCQUIC_FEC","QUIC","TCP"}
-NUM_CLIENTS={3,5,7}
+NUM_CLIENTS={3,7,11,15,19,25}
+// # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25}
 // # NUM_CLIENTS={3,5,7,9,11}
 // # {
 // # 	CURRENT_TEST={"QUIC","FCQUIC","FCQUIC_FEC","TCP"}
 // # 	TEST_NBR={"0","1","2","3"}
 // # }
 // # This will 4 tests: Baseline QUIC (no FEC), FC-QUIC without FEC, FC-QUIC with FEC, TCP (with TLS)
-INTERVAL=500
+INTERVAL=10
 POISSON="true"
 LAMBDA=1
 TCP_NODELAY="true"
@@ -36,7 +37,7 @@ USE_SYSTEM_TIME="false"
 // # poisson:FEC_MODE="constant"
 // # poisson:IS_BASELINE={"false","true"}
 // # tcp:TCP_NODELAY={"true", "false"}
-TEST_LENGTH=30
+TEST_LENGTH=10
 PER_CLIENT_LAT_RESULTS=false
 WORKDIR=""
 RUN_LOGS_DIR_BASELINE="./logs"
@@ -65,7 +66,7 @@ echo "Building project"
 
 if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    $CARGO_PATH build --release --opt-level 3 > /dev/null 2> /dev/null
+    $CARGO_PATH build --release > /dev/null
 
    	cp ./target/release/quic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-server
     cp ./target/release/quic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-client
@@ -111,7 +112,7 @@ echo "Starting server"
 
 if [ "$CURRENT_TEST" = "QUIC" ]; then
 	RUN_LOGS_DIR_BASELINE="${RUN_LOGS_DIR_BASELINE}/${NUM_CLIENTS}"
-	mkdir ${RUN_LOGS_DIR_BASELINE} 2> /dev/null
+	mkdir ${RUN_LOGS_DIR_BASELINE}
 
 	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE}/server.log
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
@@ -163,7 +164,7 @@ echo "Server running!"
 
 echo "EVENT server-up"
 
-SLEEP_LENGTH_SERVER=$(echo "20+${TEST_LENGTH}" | bc)
+SLEEP_LENGTH_SERVER=$(echo "10+${TEST_LENGTH}" | bc)
 echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 

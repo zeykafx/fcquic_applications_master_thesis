@@ -2,7 +2,7 @@ topology:
     defaults:
         routers:
             multicast: true
-            rp_id: 2
+            rp_id: 1
             asm_prefix: "224.0.0.0/4"
             name_prefix: "r"
 
@@ -22,10 +22,10 @@ topology:
 
     servers: ["server1"]
     clients:
-        num: 11
+        num: 25
 
-    # RECEIVERS={3, 5, 7, 9, 11}
-    # The test will start with only 3 receivers used (client 1 is always included)
+    # RECEIVERS={3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25}
+    # The test will start with only 3 receivers used (client 1 is always included), then add 2 clients for each test
     links:
         - endpoints: ["r1", "server1"]
 
@@ -46,3 +46,24 @@ topology:
 
         - endpoints: ["r2", "client10"]
         - endpoints: ["r3", "client11"]
+
+        - endpoints: ["r2", "client12"]
+        - endpoints: ["r3", "client13"]
+
+        - endpoints: ["r2", "client14"]
+        - endpoints: ["r3", "client15"]
+
+        - endpoints: ["r2", "client16"]
+        - endpoints: ["r3", "client17"]
+
+        - endpoints: ["r2", "client18"]
+        - endpoints: ["r3", "client19"]
+
+        - endpoints: ["r2", "client20"]
+        - endpoints: ["r3", "client21"]
+
+        - endpoints: ["r2", "client22"]
+        - endpoints: ["r3", "client23"]
+
+        - endpoints: ["r2", "client24"]
+        - endpoints: ["r3", "client25"]

@@ -147,14 +147,14 @@ sudo -E ./venv/bin/npf-run --test ./tests/${TEST_DIR_NAME}/script.npf \
 
 # ---------------- Plots ----------------
 
-# echo "Graphing results"
+echo "Graphing results"
 
 
-# cd $WORKDIR/evaluations/graphs
+cd $WORKDIR/evaluations/graphs
 
-# ./latency_cdf.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ../tests/${TEST_DIR_NAME}/graphs
+./receivers_cdf.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./
 
-# echo "Plots written"
+echo "Plots written"
 
 # ---------------- Tearing down the topology ----------------
 
