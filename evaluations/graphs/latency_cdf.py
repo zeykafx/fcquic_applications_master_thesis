@@ -34,7 +34,12 @@ def main(res_path, out_path):
 
     # clean up the messy quotes that npf adds
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
-    # data_df["FEC_MODE"] = data_df["FEC_MODE"].str.replace('"', "")
+
+    # remove outliers
+    # NOTE: is this okay to do???
+    q = data_df["y_LATENCY"].quantile(0.995)
+    print(f"Outlier threshold: {q}")
+    data_df = data_df[data_df["y_LATENCY"] < q]
 
     # filter dataframes based on CURRENT_TEST, mappings:
     # QUIC: CURRENT_TEST = "QUIC"

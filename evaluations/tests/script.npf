@@ -13,7 +13,7 @@ result_append={LATENCY}
 %late_variables
 RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=0
-BIN_LOG_LEVEL="warn"
+BIN_LOG_LEVEL="info"
 
 %variables
 // # ------------- RECEIVERS TEST -------------
