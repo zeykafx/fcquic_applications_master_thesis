@@ -72,6 +72,7 @@ echo "Setting up logs directory"
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
 
 sudo mkdir ./logs 2> /dev/null
+
 DIR=./logs
 
 # looking for previous baseline run
@@ -134,6 +135,10 @@ echo "RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}"
 echo "RUN_LOGS_DIR_FCQUIC_NO_FEC=${LOGS_BASE_DIR_FCQUIC_NO_FEC}"
 echo "RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}"
 
+# Give every use permission to read and write files in the logs folder
+# It's annoying otherwise to have to move files as root
+sudo chmod -R 777 ./$DIR
+
 cd $WORKDIR/evaluations
 
 # ---------------- Topology setup ----------------
@@ -186,7 +191,9 @@ sudo -E ./venv/bin/npf-run --test ./tests/script.npf \
     TOPO_CONF_NAME=$TOPO_CONF_NAME \
     POISSON="$USE_POISSON"
 
-
+# give permissions to all users to read and write the output file.
+# otherwise if this wasn't done, we'd need to use sudo to move remove or rename the output file
+sudo chmod 777 ./tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv
 
 # ---------------- Plots ----------------
 

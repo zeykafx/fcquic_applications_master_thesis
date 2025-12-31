@@ -22,7 +22,8 @@ topology:
 
     servers: ["server1"]
     clients:
-        num: 25
+        # num: 25
+        num: 35
 
     # RECEIVERS={3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25}
     # The test will start with only 3 receivers used (client 1 is always included), then add 2 clients for each test
@@ -67,3 +68,18 @@ topology:
 
         - endpoints: ["r2", "client24"]
         - endpoints: ["r3", "client25"]
+
+        - endpoints: ["r2", "client26"]
+        - endpoints: ["r3", "client27"]
+
+        - endpoints: ["r2", "client28"]
+        - endpoints: ["r3", "client29"]
+
+        - endpoints: ["r2", "client30"]
+        - endpoints: ["r3", "client31"]
+
+        - endpoints: ["r2", "client32"]
+        - endpoints: ["r3", "client33"]
+
+        - endpoints: ["r2", "client34"]
+        - endpoints: ["r3", "client35"]

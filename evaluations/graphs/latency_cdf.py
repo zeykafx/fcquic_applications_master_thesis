@@ -6,7 +6,20 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from style import COLORS, LINESTYLES, LINEWIDTH, latexify
+from style import (
+    COLORS,
+    LINESTYLES,
+    LINEWIDTH,
+    latexify,
+    FCQUIC_COLOR,
+    FCQUIC_FEC_COLOR,
+    BASELINE_QUIC_COLOR,
+    BASELINE_QUIC_LINESTYLE,
+    FCQUIC_FEC_LINESTYLE,
+    FCQUIC_LINESTYLE,
+    BASELINE_TCP_COLOR,
+    BASELINE_TCP_LINESTYLE,
+)
 
 
 def file_path(path):
@@ -61,6 +74,11 @@ def main(res_path, out_path):
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
 
+    if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
+        print(
+            "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
+        )
+
     global_len = min(len_fcquic, len_baseline, len_fcquic_fec, len_tcp)
     print(f"min length of the dataframes: {global_len}")
     # df_fcquic = df_fcquic[:global_len]
@@ -75,29 +93,29 @@ def main(res_path, out_path):
     plt.ecdf(
         (df_fcquic["y_LATENCY"] / 1000),
         label="FC-QUIC",
-        color=COLORS[1],
-        linestyle=LINESTYLES[0],
+        color=FCQUIC_COLOR,
+        linestyle=FCQUIC_LINESTYLE,
         lw=LINEWIDTH,
     )
     plt.ecdf(
         (df_fcquic_fec["y_LATENCY"] / 1000),
         label="FC-QUIC with FEC",
-        color=COLORS[3],
-        linestyle=LINESTYLES[2],
+        color=FCQUIC_FEC_COLOR,
+        linestyle=FCQUIC_FEC_LINESTYLE,
         lw=LINEWIDTH + 0.2,
     )
     plt.ecdf(
         (df_baseline["y_LATENCY"] / 1000),
         label="Baseline QUIC",
-        color=COLORS[2],
-        linestyle=LINESTYLES[3],
+        color=BASELINE_QUIC_COLOR,
+        linestyle=BASELINE_QUIC_LINESTYLE,
         lw=LINEWIDTH,
     )
     plt.ecdf(
         (df_tcp["y_LATENCY"] / 1000),
-        label="Baseline TCP (TLS)",
-        color=COLORS[4],
-        linestyle=LINESTYLES[4],
+        label="Baseline TCP (+TLS)",
+        color=BASELINE_TCP_COLOR,
+        linestyle=BASELINE_TCP_LINESTYLE,
         lw=LINEWIDTH,
     )
 

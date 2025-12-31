@@ -237,7 +237,12 @@ def configure_link(
         network = IPv4Network(f"10.10.{link_ctr}.0/24")
         link_ctr += 1
 
-    topo.add_link(node1, node2, network)
+    topo.add_link(
+        node1,
+        node2,
+        network,
+        router_link=router_link,
+    )
 
     if not router_link:
         # If any of the two nodes is a server or a client, record the a tuple (node, ip)
@@ -477,6 +482,10 @@ def main():
 
         for itf, info in topo.get_itfs(router):
             itf_conf = conf.get_interface(itf)
+
+            if "inter_router_itf" in info and not info["inter_router_itf"]:
+                itf_conf.isis.set_passive()
+
             itf_conf.isis.enable()
 
             # multicast is enabled on this interface if info["multicast"] is True, if it's undefined, then we use the default value (True)

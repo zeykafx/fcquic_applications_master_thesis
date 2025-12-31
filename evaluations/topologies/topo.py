@@ -25,7 +25,12 @@ class Topology:
         return self.ids[node]
 
     def add_link(
-        self, node1: str, node2: str, network: IPv4Network, backup: bool = False
+        self,
+        node1: str,
+        node2: str,
+        network: IPv4Network,
+        backup: bool = False,
+        router_link: bool = False,
     ):
         self.add_node(node1)
         self.add_node(node2)
@@ -42,6 +47,7 @@ class Topology:
             conf2.add_interface(itf2)
 
         self._set_link_property(node1, node2, "backup", backup)
+        self._set_link_property(node1, node2, "inter_router_itf", router_link)
 
         ip1, ip2 = list(network.hosts())[:2]
         self.set_ip(node1, node2, ip1, network.prefixlen)
