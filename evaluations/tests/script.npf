@@ -13,32 +13,33 @@ result_append={LATENCY}
 %late_variables
 RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=0
-BIN_LOG_LEVEL="info"
+BIN_LOG_LEVEL="warn"
 
 %variables
 // # ------------- RECEIVERS TEST -------------
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="smaller_receivers"
-CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP"}
-NUM_CLIENTS={3,9,15,21,27,33}
-// # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
+CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
+// # NUM_CLIENTS={3,9,15,21,27,33}
+NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25}
 // # NUM_CLIENTS={3,7,11,15,19,25}
 // # NUM_CLIENTS={3,5,7,9,11}
-INTERVAL=100
-TEST_LENGTH=10
+INTERVAL=10
+TEST_LENGTH=5
 FALLBACK_DELAY=200
 // # ------------- LATENCY TEST: use the latency tag -------------
-latency:CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP"}
+latency:CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
 latency:NUM_CLIENTS=4
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
-latency:interval=50
+latency:INTERVAL=50
+latency:LAMBDA=0.3
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
-LAMBDA=1
+LAMBDA=0.3
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
 PER_CLIENT_LAT_RESULTS=false
@@ -48,6 +49,7 @@ RUN_LOGS_DIR_BASELINE="./logs"
 RUN_LOGS_DIR_TCP="./logs"
 RUN_LOGS_DIR_FCQUIC_NO_FEC="./logs"
 RUN_LOGS_DIR_FCQUIC_FEC="./logs"
+RUN_LOGS_DIR_TOKIO_QUICHE="./logs"
 WORKDIR=""
 CARGO_PATH=""
 
@@ -78,6 +80,8 @@ if [ "$RELEASE_MODE" = "true" ]; then
     cp ./target/release/tcp-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tcp-client
    	cp ./target/release/server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/server
     cp ./target/release/client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/client
+   	cp ./target/release/tquic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tquic-server
+    cp ./target/release/tquic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tquic-client
 else
     echo "building all in debug mode"
     $CARGO_PATH build > /dev/null 2> /dev/null
@@ -88,6 +92,8 @@ else
     cp ./target/debug/tcp-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tcp-client
    	cp ./target/debug/server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/server
     cp ./target/debug/client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/client
+   	cp ./target/debug/tquic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tquic-server
+    cp ./target/debug/tquic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tquic-client
 fi
 
 echo "Done building project"
@@ -107,6 +113,8 @@ pkill client || true
 pkill quic-server || true
 pkill tcp-server || true
 pkill server || true
+pkill tquic-client || true
+pkill tquic-server || true
 
 
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
@@ -156,6 +164,18 @@ elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
 	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
 
+elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
+
+	RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS="${RUN_LOGS_DIR_TOKIO_QUICHE}/${NUM_CLIENTS}"
+	sudo mkdir ${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} 2> /dev/null
+
+	LOG_FILENAME=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS}/server.log
+	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
+	touch ${LOG_FILENAME}
+
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tquic-server \
+		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
+
 else
 
 	RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_NO_FEC}/${NUM_CLIENTS}"
@@ -186,6 +206,7 @@ sleep ${SLEEP_LENGTH_SERVER}
 pkill quic-client || true
 pkill tcp-client || true
 pkill client || true
+pkill tquic-client || true
 
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
 
@@ -193,6 +214,7 @@ RUN_LOGS_DIR_BASELINE_NUM_CLIENTS="${RUN_LOGS_DIR_BASELINE}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_TCP_NUM_CLIENTS="${RUN_LOGS_DIR_TCP}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_FEC}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_NO_FEC}/${NUM_CLIENTS}"
+RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS="${RUN_LOGS_DIR_TOKIO_QUICHE}/${NUM_CLIENTS}"
 
 echo "Starting clients"
 pids=()
@@ -241,6 +263,15 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 		--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
 		--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 
+	elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
+
+		LOG_FILENAME=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS}/client${CLIENT_ID}.log
+
+		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tquic-client https://10.10.0.2:4433 \
+			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
+			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
+			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+
     else
 
     	if [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
@@ -257,7 +288,6 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
 			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
-
 	fi
 
 	# sleep 0.01

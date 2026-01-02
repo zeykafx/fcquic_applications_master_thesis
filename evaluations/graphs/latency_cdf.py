@@ -7,18 +7,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from style import (
-    COLORS,
-    LINESTYLES,
-    LINEWIDTH,
-    latexify,
-    FCQUIC_COLOR,
-    FCQUIC_FEC_COLOR,
     BASELINE_QUIC_COLOR,
     BASELINE_QUIC_LINESTYLE,
-    FCQUIC_FEC_LINESTYLE,
-    FCQUIC_LINESTYLE,
     BASELINE_TCP_COLOR,
     BASELINE_TCP_LINESTYLE,
+    COLORS,
+    FCQUIC_COLOR,
+    FCQUIC_FEC_COLOR,
+    FCQUIC_FEC_LINESTYLE,
+    FCQUIC_LINESTYLE,
+    LINESTYLES,
+    LINEWIDTH,
+    TOKIO_QUICHE_COLOR,
+    TOKIO_QUICHE_LINESTYLE,
+    latexify,
 )
 
 
@@ -40,8 +42,8 @@ def main(res_path, out_path):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
-    poisson = str(data_df["POISSON"][0]).replace('"', "")
-    is_poisson = poisson == "true"
+    poisson = data_df["POISSON"][0]
+    is_poisson = poisson == True
     poisson_str = "poisson" if is_poisson else "uniform"
     print(f"is poisson?: {is_poisson}")
 
@@ -59,27 +61,33 @@ def main(res_path, out_path):
     # FCQUIC (no FEC): CURRENT_TEST = "FCQUIC"
     # FCQUIC with FEC: CURRENT_TEST = "FCQUIC_FEC"
     # TCP: CURRENT_TEST = "TCP"
+    # TOKIO_QUICHE: CURRENT_TEST = "TOKIO_QUICHE"
     df_baseline = data_df[data_df["CURRENT_TEST"] == "QUIC"]
     df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
     df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
     df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
+    df_tokio_quiche = data_df[data_df["CURRENT_TEST"] == "TOKIO_QUICHE"]
 
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
     len_fcquic_fec = len(df_fcquic_fec)
     len_tcp = len(df_tcp)
+    len_tokio_quiche = len(df_tokio_quiche)
 
     print(f"Baseline QUIC samples: {len_baseline}")
     print(f"Baseline TCP samples: {len_tcp}")
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
+    print(f"Tokio-quiche samples: {len_tokio_quiche}")
 
     if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
         print(
             "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
         )
 
-    global_len = min(len_fcquic, len_baseline, len_fcquic_fec, len_tcp)
+    global_len = min(
+        len_fcquic, len_baseline, len_fcquic_fec, len_tcp, len_tokio_quiche
+    )
     print(f"min length of the dataframes: {global_len}")
     # df_fcquic = df_fcquic[:global_len]
     # df_fcquic_fec = df_fcquic_fec[:global_len]
@@ -116,6 +124,13 @@ def main(res_path, out_path):
         label="Baseline TCP (+TLS)",
         color=BASELINE_TCP_COLOR,
         linestyle=BASELINE_TCP_LINESTYLE,
+        lw=LINEWIDTH,
+    )
+    plt.ecdf(
+        (df_tokio_quiche["y_LATENCY"] / 1000),
+        label="Tokio-quiche",
+        color=TOKIO_QUICHE_COLOR,
+        linestyle=TOKIO_QUICHE_LINESTYLE,
         lw=LINEWIDTH,
     )
 

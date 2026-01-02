@@ -243,18 +243,36 @@ class Topology:
         )
 
     def _add_ips(self, node):
-        commands = []
         for _, _, info in self.graph.edges(node, data=True):
             if "ip" in info:
-                commands.append(
-                    f"ip addr add {info['ip']}/{info['prefix']} dev {info['itf']}"
+                subprocess.run(
+                    [
+                        "ip",
+                        "netns",
+                        "exec",
+                        f"{node}",
+                        "ip",
+                        "addr",
+                        "add",
+                        f"{info['ip']}/{info['prefix']}",
+                        "dev",
+                        f"{info['itf']}",
+                    ]
                 )
 
-        if len(commands) > 0:
-            full_cmd = " && ".join(commands)
-            subprocess.run(
-                ["ip", "netns", "exec", f"{node}", "sh", "-c", full_cmd], check=True
-            )
+    # def _add_ips(self, node):
+    #     commands = []
+    #     for _, _, info in self.graph.edges(node, data=True):
+    #         if "ip" in info:
+    #             commands.append(
+    #                 f"ip addr add {info['ip']}/{info['prefix']} dev {info['itf']}"
+    #             )
+
+    #     if len(commands) > 0:
+    #         full_cmd = " && ".join(commands)
+    #         subprocess.run(
+    #             ["ip", "netns", "exec", f"{node}", "sh", "-c", full_cmd], check=True
+    #         )
 
     def _set_netem(self, node, data):
         delay = data.get("delay", "0ms")
@@ -262,7 +280,7 @@ class Topology:
         limit = str(data.get("limit", "10000"))
         codel = data.get("codel", False)
         loss_percentage = data.get("loss_percentage", "0%")
-        burst_percentage = data.get("burst_percentage", "25%")
+        burst_percentage = data.get("burst_percentage", "15%")
         cmd = [
             "ip",
             "netns",

@@ -2,30 +2,33 @@
 
 import argparse
 import os
-from style import (
-    COLORS,
-    LINESTYLES,
-    LINEWIDTH,
-    MARKERSIZE,
-    latexify,
-    CONFIDENCE_BAND_OPACITY,
-    FCQUIC_COLOR,
-    FCQUIC_FEC_COLOR,
-    BASELINE_QUIC_COLOR,
-    BASELINE_QUIC_LINESTYLE,
-    FCQUIC_FEC_LINESTYLE,
-    FCQUIC_LINESTYLE,
-    BASELINE_TCP_COLOR,
-    BASELINE_TCP_LINESTYLE,
-    FCQUIC_MARKER,
-    FCQUIC_FEC_MARKER,
-    BASELINE_QUIC_MARKER,
-    BASELINE_TCP_MARKER,
-)
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from brokenaxes import brokenaxes
+from style import (
+    BASELINE_QUIC_COLOR,
+    BASELINE_QUIC_LINESTYLE,
+    BASELINE_QUIC_MARKER,
+    BASELINE_TCP_COLOR,
+    BASELINE_TCP_LINESTYLE,
+    BASELINE_TCP_MARKER,
+    CONFIDENCE_BAND_OPACITY,
+    FCQUIC_COLOR,
+    FCQUIC_FEC_COLOR,
+    FCQUIC_FEC_LINESTYLE,
+    FCQUIC_FEC_MARKER,
+    FCQUIC_LINESTYLE,
+    FCQUIC_MARKER,
+    LINEWIDTH,
+    MARKERSIZE,
+    TOKIO_QUICHE_COLOR,
+    TOKIO_QUICHE_LINESTYLE,
+    TOKIO_QUICHE_MARKER,
+    latexify,
+)
 
 
 def file_path(path):
@@ -47,22 +50,24 @@ def plot_average_latency_vs_receivers(
     fcquic_fec_grouped,
     baseline_grouped,
     tcp_grouped,
+    tokio_quiche_grouped,
     clients_range_str,
     topo_name,
     poisson_str,
     out_path,
 ):
-
-    height = 8
+    height = 10
     width = 8
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
+    bax = brokenaxes(ylims=((0, 1), (5.5, 7.25)), hspace=0.15)
+
     # FCQUIC
     x_fcquic = fcquic_grouped["NUM_CLIENTS"]
-    plt.plot(
+    bax.plot(
         x_fcquic,
-        fcquic_grouped["mean"],
+        fcquic_grouped["median"],
         label="FC-QUIC",
         color=FCQUIC_COLOR,
         linestyle=FCQUIC_LINESTYLE,
@@ -70,7 +75,7 @@ def plot_average_latency_vs_receivers(
         markersize=MARKERSIZE,
         lw=LINEWIDTH,
     )
-    plt.fill_between(
+    bax.fill_between(
         x_fcquic,
         fcquic_grouped["ci_lower"],
         fcquic_grouped["ci_upper"],
@@ -80,9 +85,9 @@ def plot_average_latency_vs_receivers(
 
     # FCQUIC-FEC
     x_fcquic_fec = fcquic_fec_grouped["NUM_CLIENTS"]
-    plt.plot(
+    bax.plot(
         x_fcquic_fec,
-        fcquic_fec_grouped["mean"],
+        fcquic_fec_grouped["median"],
         label="FC-QUIC with FEC",
         color=FCQUIC_FEC_COLOR,
         linestyle=FCQUIC_FEC_LINESTYLE,
@@ -90,7 +95,7 @@ def plot_average_latency_vs_receivers(
         markersize=MARKERSIZE,
         lw=LINEWIDTH,
     )
-    plt.fill_between(
+    bax.fill_between(
         x_fcquic_fec,
         fcquic_fec_grouped["ci_lower"],
         fcquic_fec_grouped["ci_upper"],
@@ -100,9 +105,9 @@ def plot_average_latency_vs_receivers(
 
     # Baseline QUIC
     x_baseline = baseline_grouped["NUM_CLIENTS"]
-    plt.plot(
+    bax.plot(
         x_baseline,
-        baseline_grouped["mean"],
+        baseline_grouped["median"],
         label="Baseline QUIC",
         color=BASELINE_QUIC_COLOR,
         linestyle=BASELINE_QUIC_LINESTYLE,
@@ -110,7 +115,7 @@ def plot_average_latency_vs_receivers(
         markersize=MARKERSIZE,
         lw=LINEWIDTH,
     )
-    plt.fill_between(
+    bax.fill_between(
         x_baseline,
         baseline_grouped["ci_lower"],
         baseline_grouped["ci_upper"],
@@ -120,9 +125,9 @@ def plot_average_latency_vs_receivers(
 
     # TCP
     x_tcp = tcp_grouped["NUM_CLIENTS"]
-    plt.plot(
+    bax.plot(
         x_tcp,
-        tcp_grouped["mean"],
+        tcp_grouped["median"],
         label="Baseline TCP (+TLS)",
         color=BASELINE_TCP_COLOR,
         linestyle=BASELINE_TCP_LINESTYLE,
@@ -130,7 +135,7 @@ def plot_average_latency_vs_receivers(
         markersize=MARKERSIZE,
         lw=LINEWIDTH,
     )
-    plt.fill_between(
+    bax.fill_between(
         x_tcp,
         tcp_grouped["ci_lower"],
         tcp_grouped["ci_upper"],
@@ -138,17 +143,37 @@ def plot_average_latency_vs_receivers(
         alpha=CONFIDENCE_BAND_OPACITY,
     )
 
-    plt.xlabel("Number of clients", fontsize=12)
-    plt.ylabel("Avg Latency (µs)", fontsize=14)
-    # plt.ylim(bottom=5000)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.legend()
-    plt.savefig(
-        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
-        dpi=350,
-        bbox_inches="tight",
+    # Tokio-quiche
+    x_tokio_quiche = tokio_quiche_grouped["NUM_CLIENTS"]
+    bax.plot(
+        x_tokio_quiche,
+        tokio_quiche_grouped["median"],
+        label="Tokio-quiche",
+        color=TOKIO_QUICHE_COLOR,
+        linestyle=TOKIO_QUICHE_LINESTYLE,
+        marker=TOKIO_QUICHE_MARKER,
+        markersize=MARKERSIZE,
+        lw=LINEWIDTH,
     )
+    bax.fill_between(
+        x_tokio_quiche,
+        tokio_quiche_grouped["ci_lower"],
+        tokio_quiche_grouped["ci_upper"],
+        color=TOKIO_QUICHE_COLOR,
+        alpha=CONFIDENCE_BAND_OPACITY,
+    )
+
+    bax.set_xlabel("Number of clients", fontsize=12)
+    bax.set_ylabel("Avg Latency (ms)", fontsize=12)
+
+    bax.grid(True, alpha=0.3)
+    bax.legend(loc="lower right")
+    plt.title(f"Average latency vs number of clients ({poisson_str})", fontsize=14)
+    # plt.savefig(
+    #     f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
+    #     dpi=350,
+    #     bbox_inches="tight",
+    # )
     plt.savefig(
         f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
@@ -175,19 +200,17 @@ def plot_avg_lat(
         markersize=12,
         dashes=True,
         alpha=1,
-        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC"],
+        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC", "TOKIO_QUICHE"],
     )
     plt.xlabel("Number of clients")
-    plt.ylabel("Average Latency (µs)")
-    plt.ylim(bottom=5000)
-    # plt.ylim(bottom=0)
-    # plt.xticks(num_clients)
+    plt.ylabel("Average Latency (ms)")
+    plt.ylim(bottom=0)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
     plt.savefig(
-        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
-        dpi=350,
+        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
+        # dpi=350,
         bbox_inches="tight",
     )
 
@@ -203,11 +226,11 @@ def plot_cdfs(
     plt.figure(figsize=(10, 20))
     grid = sns.displot(
         kind="ecdf",
-        x=data_df["y_LATENCY"] / 1000,
+        x=data_df["y_LATENCY"],
         hue=data_df["CURRENT_TEST"],
         palette="Set2",
         col=data_df["NUM_CLIENTS"],
-        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC"],
+        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC", "TOKIO_QUICHE"],
         height=5,
         aspect=0.8,
     )
@@ -220,22 +243,55 @@ def plot_cdfs(
     plt.tight_layout()
 
     plt.savefig(
-        f"{out_path}/cdfs_{clients_range_str}_{topo_name}_{poisson_str}.png",
+        f"{out_path}/cdfs_{clients_range_str}_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
+    )
+
+
+def plot_boxplot_by_receivers(
+    data_df, clients_range_str, out_path, topo_name, poisson_str
+):
+    plt.figure(figsize=(14, 8))
+    latexify(nb_subplots_line=1, fig_height=8, fig_width=14)
+
+    sns.boxplot(
+        data=data_df,
+        x="NUM_CLIENTS",
+        y="y_LATENCY",
+        hue="CURRENT_TEST",
+        palette={
+            "FCQUIC": FCQUIC_COLOR,
+            "FCQUIC_FEC": FCQUIC_FEC_COLOR,
+            "QUIC": BASELINE_QUIC_COLOR,
+            "TCP": BASELINE_TCP_COLOR,
+            "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+        },
+        hue_order=["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TOKIO_QUICHE"],
+    )
+
+    plt.xlabel("Number of Clients", fontsize=14)
+    plt.ylabel("Latency (ms)", fontsize=14)
+    plt.title(f"Latency Distribution by Number of Clients ({poisson_str})", fontsize=16)
+    plt.grid(True, alpha=0.3, axis="y")
+    plt.legend(title="Protocol")
+    plt.tight_layout()
+    plt.savefig(
+        f"{out_path}/boxplot_per_receiver_{clients_range_str}_{topo_name}_{poisson_str}.png",
         dpi=350,
         bbox_inches="tight",
     )
 
 
-def get_mean_std_grouped_for_df(df):
+def get_median_std_grouped_for_df(df):
     grouped = (
         df[["NUM_CLIENTS", "y_LATENCY"]]
         .groupby("NUM_CLIENTS")
-        .agg(["mean", "std", "count"])
+        .agg(["median", "std", "count"])
     )
     grouped = grouped.droplevel(axis=1, level=0).reset_index()
-    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
-    grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
-    grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
+    grouped["ci"] = 1.98 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["median"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["median"] + grouped["ci"]
     return grouped
 
 
@@ -243,8 +299,12 @@ def main(res_path, out_path):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
-    poisson = str(data_df["POISSON"][0]).replace('"', "")
-    is_poisson = poisson == "true"
+    poisson = data_df["POISSON"][0]
+    is_poisson = poisson == True
+
+    # poisson = str(data_df["POISSON"][0]).replace('"', "")
+    # is_poisson = poisson == "true"
+
     poisson_str = "poisson" if is_poisson else "uniform"
     print(f"is poisson?: {is_poisson}")
 
@@ -252,8 +312,8 @@ def main(res_path, out_path):
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
     # remove outliers
-    # NOTE: is this okay to do???
-    q = data_df["y_LATENCY"].quantile(0.995)
+    # TODO: check if this is okay
+    q = data_df["y_LATENCY"].quantile(0.997)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]
 
@@ -270,26 +330,30 @@ def main(res_path, out_path):
     df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
     df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
     df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
+    df_tokio_quiche = data_df[data_df["CURRENT_TEST"] == "TOKIO_QUICHE"]
 
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
     len_fcquic_fec = len(df_fcquic_fec)
     len_tcp = len(df_tcp)
+    len_tokio_quiche = len(df_tokio_quiche)
 
     print(f"Baseline QUIC samples: {len_baseline}")
     print(f"Baseline TCP samples: {len_tcp}")
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
+    print(f"Tokio-quiche samples: {len_tokio_quiche}")
 
     if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
         print(
             "-------------------------------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! --------------------------------------"
         )
 
-    baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
-    fcquic_grouped = get_mean_std_grouped_for_df(df_fcquic)
-    fcquic_fec_grouped = get_mean_std_grouped_for_df(df_fcquic_fec)
-    tcp_grouped = get_mean_std_grouped_for_df(df_tcp)
+    baseline_grouped = get_median_std_grouped_for_df(df_baseline)
+    fcquic_grouped = get_median_std_grouped_for_df(df_fcquic)
+    fcquic_fec_grouped = get_median_std_grouped_for_df(df_fcquic_fec)
+    tcp_grouped = get_median_std_grouped_for_df(df_tcp)
+    tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
 
     # plot_avg_lat(data_df, clients_range_str, out_path, topo_name, poisson_str)
     plot_average_latency_vs_receivers(
@@ -297,6 +361,7 @@ def main(res_path, out_path):
         fcquic_fec_grouped,
         baseline_grouped,
         tcp_grouped,
+        tokio_quiche_grouped,
         clients_range_str,
         topo_name,
         poisson_str,
@@ -305,89 +370,8 @@ def main(res_path, out_path):
 
     plot_cdfs(data_df, clients_range_str, out_path, topo_name, poisson_str)
 
-    # filter dataframes based on CURRENT_TEST, mappings:
-    # QUIC: CURRENT_TEST = "QUIC"
-    # FCQUIC (no FEC): CURRENT_TEST = "FCQUIC"
-    # FCQUIC with FEC: CURRENT_TEST = "FCQUIC_FEC"
-    # TCP: CURRENT_TEST = "TCP"
-    # df_baseline = data_df[data_df["CURRENT_TEST"] == "QUIC"]
-    # df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
-    # df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
-    # df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
-
-    # len_fcquic = len(df_fcquic)
-    # len_baseline = len(df_baseline)
-    # len_fcquic_fec = len(df_fcquic_fec)
-    # len_tcp = len(df_tcp)
-
-    # print(f"Baseline QUIC samples: {len_baseline}")
-    # print(f"Baseline TCP samples: {len_tcp}")
-    # print(f"FC-QUIC samples: {len_fcquic}")
-    # print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
-
-    # if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
-    #     print(
-    #         "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
-    #     )
-
-    # global_len = min(len_fcquic, len_baseline, len_fcquic_fec, len_tcp)
-    # print(f"min length of the dataframes: {global_len}")
-    # # df_fcquic = df_fcquic[:global_len]
-    # # df_fcquic_fec = df_fcquic_fec[:global_len]
-    # # df_baseline = df_baseline[:global_len]
-    # # df_tcp = df_tcp[:global_len]
-
-    # sns.set_style("whitegrid")
-    # plt.figure(figsize=(8, 6))
-    # latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
-
-    # plt.ecdf(
-    #     (df_fcquic["y_LATENCY"] / 1000),
-    #     label="FC-QUIC",
-    #     color=COLORS[1],
-    #     linestyle=LINESTYLES[0],
-    #     lw=LINEWIDTH,
-    # )
-    # plt.ecdf(
-    #     (df_fcquic_fec["y_LATENCY"] / 1000),
-    #     label="FC-QUIC with FEC",
-    #     color=COLORS[3],
-    #     linestyle=LINESTYLES[2],
-    #     lw=LINEWIDTH + 0.2,
-    # )
-    # plt.ecdf(
-    #     (df_baseline["y_LATENCY"] / 1000),
-    #     label="Baseline QUIC",
-    #     color=COLORS[2],
-    #     linestyle=LINESTYLES[3],
-    #     lw=LINEWIDTH,
-    # )
-    # plt.ecdf(
-    #     (df_tcp["y_LATENCY"] / 1000),
-    #     label="Baseline TCP (TLS)",
-    #     color=COLORS[4],
-    #     linestyle=LINESTYLES[4],
-    #     lw=LINEWIDTH,
-    # )
-
-    # plt.ylabel("Probability of occurence", fontsize=12)
-    # plt.title(f"Cumulative distribution of latency ({poisson_str})", fontsize=14)
-    # plt.xlabel("Latency (ms)", fontsize=12)
-    # # plt.xlim(left=0)
-    # plt.ylim(0, 1)
-    # plt.legend()
-    # plt.grid(True, alpha=0.3)
-
-    # plt.tight_layout()
-
-    # plt.savefig(
-    #     f"{out_path}/cdf_{topo_name}_{poisson_str}.png",
-    #     dpi=350,
-    #     bbox_inches="tight",
-    # )
-    # plt.savefig(
-    #     f"{out_path}/cdf_{topo_name}_{poisson_str}.svg",
-    #     bbox_inches="tight",
+    # plot_boxplot_by_receivers(
+    #     data_df, clients_range_str, out_path, topo_name, poisson_str
     # )
 
 
