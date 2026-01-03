@@ -11,12 +11,10 @@ from style import (
     BASELINE_QUIC_LINESTYLE,
     BASELINE_TCP_COLOR,
     BASELINE_TCP_LINESTYLE,
-    COLORS,
     FCQUIC_COLOR,
     FCQUIC_FEC_COLOR,
     FCQUIC_FEC_LINESTYLE,
     FCQUIC_LINESTYLE,
-    LINESTYLES,
     LINEWIDTH,
     TOKIO_QUICHE_COLOR,
     TOKIO_QUICHE_LINESTYLE,
@@ -80,6 +78,22 @@ def main(res_path, out_path):
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
     print(f"Tokio-quiche samples: {len_tokio_quiche}")
 
+    # Print per-run statistics if run_index exists
+    if "run_index" in data_df.columns:
+        print("\n=== Per-run breakdown ===")
+        for test_name, df_test in [
+            ("QUIC", df_baseline),
+            ("TCP", df_tcp),
+            ("FCQUIC", df_fcquic),
+            ("FCQUIC_FEC", df_fcquic_fec),
+            ("TOKIO_QUICHE", df_tokio_quiche),
+        ]:
+            if len(df_test) > 0:
+                print(f"\n{test_name}:")
+                run_counts = df_test.groupby("test_index").size()
+                for run_idx, count in run_counts.items():
+                    print(f"  Run {run_idx}: {count} samples")
+
     if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
         print(
             "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
@@ -89,53 +103,54 @@ def main(res_path, out_path):
         len_fcquic, len_baseline, len_fcquic_fec, len_tcp, len_tokio_quiche
     )
     print(f"min length of the dataframes: {global_len}")
-    # df_fcquic = df_fcquic[:global_len]
-    # df_fcquic_fec = df_fcquic_fec[:global_len]
-    # df_baseline = df_baseline[:global_len]
-    # df_tcp = df_tcp[:global_len]
 
     sns.set_style("whitegrid")
     plt.figure(figsize=(8, 6))
     latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
 
-    plt.ecdf(
-        (df_fcquic["y_LATENCY"] / 1000),
-        label="FC-QUIC",
-        color=FCQUIC_COLOR,
-        linestyle=FCQUIC_LINESTYLE,
-        lw=LINEWIDTH,
-    )
-    plt.ecdf(
-        (df_fcquic_fec["y_LATENCY"] / 1000),
-        label="FC-QUIC with FEC",
-        color=FCQUIC_FEC_COLOR,
-        linestyle=FCQUIC_FEC_LINESTYLE,
-        lw=LINEWIDTH + 0.2,
-    )
-    plt.ecdf(
-        (df_baseline["y_LATENCY"] / 1000),
-        label="Baseline QUIC",
-        color=BASELINE_QUIC_COLOR,
-        linestyle=BASELINE_QUIC_LINESTYLE,
-        lw=LINEWIDTH,
-    )
-    plt.ecdf(
-        (df_tcp["y_LATENCY"] / 1000),
-        label="Baseline TCP (+TLS)",
-        color=BASELINE_TCP_COLOR,
-        linestyle=BASELINE_TCP_LINESTYLE,
-        lw=LINEWIDTH,
-    )
-    plt.ecdf(
-        (df_tokio_quiche["y_LATENCY"] / 1000),
-        label="Tokio-quiche",
-        color=TOKIO_QUICHE_COLOR,
-        linestyle=TOKIO_QUICHE_LINESTYLE,
-        lw=LINEWIDTH,
-    )
+    if len(df_fcquic) > 0:
+        plt.ecdf(
+            (df_fcquic["y_LATENCY"] / 1000),
+            label="FC-QUIC",
+            color=FCQUIC_COLOR,
+            linestyle=FCQUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_fcquic_fec) > 0:
+        plt.ecdf(
+            (df_fcquic_fec["y_LATENCY"] / 1000),
+            label="FC-QUIC with FEC",
+            color=FCQUIC_FEC_COLOR,
+            linestyle=FCQUIC_FEC_LINESTYLE,
+            lw=LINEWIDTH + 0.2,
+        )
+    if len(df_baseline) > 0:
+        plt.ecdf(
+            (df_baseline["y_LATENCY"] / 1000),
+            label="Baseline QUIC",
+            color=BASELINE_QUIC_COLOR,
+            linestyle=BASELINE_QUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp) > 0:
+        plt.ecdf(
+            (df_tcp["y_LATENCY"] / 1000),
+            label="Baseline TCP (+TLS)",
+            color=BASELINE_TCP_COLOR,
+            linestyle=BASELINE_TCP_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tokio_quiche) > 0:
+        plt.ecdf(
+            (df_tokio_quiche["y_LATENCY"] / 1000),
+            label="Baseline Tokio-quiche",
+            color=TOKIO_QUICHE_COLOR,
+            linestyle=TOKIO_QUICHE_LINESTYLE,
+            lw=LINEWIDTH,
+        )
 
     plt.ylabel("Probability of occurence", fontsize=12)
-    plt.title(f"Cumulative distribution of latency ({poisson_str})", fontsize=14)
+    plt.title(f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')}", fontsize=14)
     plt.xlabel("Latency (ms)", fontsize=12)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
