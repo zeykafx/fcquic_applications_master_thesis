@@ -18,15 +18,18 @@ BIN_LOG_LEVEL="warn"
 %variables
 // # ------------- RECEIVERS TEST -------------
 TEST_DIR_NAME="receivers"
-TOPO_CONF_NAME="smaller_receivers"
+TOPO_CONF_NAME="receivers"
 CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
+NUM_CLIENTS={3,11,23,35}
 // # NUM_CLIENTS={3,9,15,21,27,33}
-NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
+// # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25}
 // # NUM_CLIENTS={3,7,11,15,19,25}
 // # NUM_CLIENTS={3,5,7,9,11}
-INTERVAL=10
-TEST_LENGTH=5
+INTERVAL=50
+MIN_INTERVAL=10
+LAMBDA=0.100
+TEST_LENGTH=10
 FALLBACK_DELAY=200
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
@@ -34,12 +37,11 @@ latency:NUM_CLIENTS=4
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=50
-latency:LAMBDA=0.3
+latency:LAMBDA=0.100
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
-LAMBDA=0.3
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
 PER_CLIENT_LAT_RESULTS=false
@@ -248,7 +250,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
 			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL}  < /dev/null 2> ${LOG_FILENAME} &
 
 	elif [ "$CURRENT_TEST" = "TCP" ]; then
 
@@ -261,7 +263,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 		sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-client https://10.10.0.2:4433 \
 		-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 		--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-		--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+		--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 
 	elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
 
@@ -270,7 +272,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tquic-client https://10.10.0.2:4433 \
 			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 
     else
 
@@ -287,7 +289,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
 			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
 	fi
 
 	# sleep 0.01

@@ -85,14 +85,14 @@ def latexify(fig_width=None, fig_height=None, columns=2, nb_subplots_line=1):
 
     fig_width *= nb_subplots_line
 
-    MAX_HEIGHT_INCHES = 8.0
-    if fig_height > MAX_HEIGHT_INCHES:
-        print(
-            "WARNING: fig_height too large {}: so will reduce to {} inches.".format(
-                fig_height, MAX_HEIGHT_INCHES
-            )
-        )
-        fig_height = MAX_HEIGHT_INCHES
+    # MAX_HEIGHT_INCHES = 8.0
+    # if fig_height > MAX_HEIGHT_INCHES:
+    #     print(
+    #         "WARNING: fig_height too large {}: so will reduce to {} inches.".format(
+    #             fig_height, MAX_HEIGHT_INCHES
+    #         )
+    #     )
+    #     fig_height = MAX_HEIGHT_INCHES
     params = {
         "backend": "ps",
         "text.latex.preamble": r"\usepackage[T1]{fontenc} \usepackage{gensymb}",

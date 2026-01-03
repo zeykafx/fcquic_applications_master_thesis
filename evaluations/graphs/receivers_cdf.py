@@ -2,11 +2,11 @@
 
 import argparse
 import os
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from brokenaxes import brokenaxes
 from style import (
     BASELINE_QUIC_COLOR,
@@ -46,6 +46,7 @@ def dir_path(path):
 
 
 def plot_average_latency_vs_receivers(
+    mean_or_median: Literal["median"] | Literal["mean"],
     fcquic_grouped,
     fcquic_fec_grouped,
     baseline_grouped,
@@ -56,18 +57,18 @@ def plot_average_latency_vs_receivers(
     poisson_str,
     out_path,
 ):
-    height = 10
-    width = 8
+    height = 9.5
+    width = 9
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-    bax = brokenaxes(ylims=((0, 1), (5.5, 7.25)), hspace=0.15)
+    bax = brokenaxes(ylims=((0, 0.5), (5.2, 7.25)), hspace=0.12)
 
     # FCQUIC
     x_fcquic = fcquic_grouped["NUM_CLIENTS"]
     bax.plot(
         x_fcquic,
-        fcquic_grouped["median"],
+        fcquic_grouped[mean_or_median],
         label="FC-QUIC",
         color=FCQUIC_COLOR,
         linestyle=FCQUIC_LINESTYLE,
@@ -87,7 +88,7 @@ def plot_average_latency_vs_receivers(
     x_fcquic_fec = fcquic_fec_grouped["NUM_CLIENTS"]
     bax.plot(
         x_fcquic_fec,
-        fcquic_fec_grouped["median"],
+        fcquic_fec_grouped[mean_or_median],
         label="FC-QUIC with FEC",
         color=FCQUIC_FEC_COLOR,
         linestyle=FCQUIC_FEC_LINESTYLE,
@@ -107,7 +108,7 @@ def plot_average_latency_vs_receivers(
     x_baseline = baseline_grouped["NUM_CLIENTS"]
     bax.plot(
         x_baseline,
-        baseline_grouped["median"],
+        baseline_grouped[mean_or_median],
         label="Baseline QUIC",
         color=BASELINE_QUIC_COLOR,
         linestyle=BASELINE_QUIC_LINESTYLE,
@@ -127,7 +128,7 @@ def plot_average_latency_vs_receivers(
     x_tcp = tcp_grouped["NUM_CLIENTS"]
     bax.plot(
         x_tcp,
-        tcp_grouped["median"],
+        tcp_grouped[mean_or_median],
         label="Baseline TCP (+TLS)",
         color=BASELINE_TCP_COLOR,
         linestyle=BASELINE_TCP_LINESTYLE,
@@ -147,7 +148,7 @@ def plot_average_latency_vs_receivers(
     x_tokio_quiche = tokio_quiche_grouped["NUM_CLIENTS"]
     bax.plot(
         x_tokio_quiche,
-        tokio_quiche_grouped["median"],
+        tokio_quiche_grouped[mean_or_median],
         label="Tokio-quiche",
         color=TOKIO_QUICHE_COLOR,
         linestyle=TOKIO_QUICHE_LINESTYLE,
@@ -163,121 +164,22 @@ def plot_average_latency_vs_receivers(
         alpha=CONFIDENCE_BAND_OPACITY,
     )
 
-    bax.set_xlabel("Number of clients", fontsize=12)
-    bax.set_ylabel("Avg Latency (ms)", fontsize=12)
+    # bax.set_xlabel("Number of clients", fontsize=12)
+    bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
+    bax.set_ylabel(f"{mean_or_median} Latency (ms)", fontsize=12, labelpad=40)
 
     bax.grid(True, alpha=0.3)
     bax.legend(loc="lower right")
-    plt.title(f"Average latency vs number of clients ({poisson_str})", fontsize=14)
+    plt.title(
+        f"{mean_or_median} latency vs number of clients ({poisson_str})", fontsize=14
+    )
     # plt.savefig(
     #     f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
     #     dpi=350,
     #     bbox_inches="tight",
     # )
     plt.savefig(
-        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
-        bbox_inches="tight",
-    )
-
-
-def plot_avg_lat(
-    data_df,
-    clients_range_str,
-    out_path,
-    topo_name,
-    poisson_str,
-):
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
-    plt.figure(figsize=(10, 12))
-    sns.lineplot(
-        x="NUM_CLIENTS",
-        y="y_LATENCY",
-        hue="CURRENT_TEST",
-        data=data_df,
-        palette="Set2",
-        style="CURRENT_TEST",
-        markers=True,
-        markersize=12,
-        dashes=True,
-        alpha=1,
-        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC", "TOKIO_QUICHE"],
-    )
-    plt.xlabel("Number of clients")
-    plt.ylabel("Average Latency (ms)")
-    plt.ylim(bottom=0)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-
-    plt.savefig(
-        f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
-        # dpi=350,
-        bbox_inches="tight",
-    )
-
-
-def plot_cdfs(
-    data_df,
-    clients_range_str,
-    out_path,
-    topo_name,
-    poisson_str,
-):
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=20)
-    plt.figure(figsize=(10, 20))
-    grid = sns.displot(
-        kind="ecdf",
-        x=data_df["y_LATENCY"],
-        hue=data_df["CURRENT_TEST"],
-        palette="Set2",
-        col=data_df["NUM_CLIENTS"],
-        hue_order=["TCP", "FCQUIC_FEC", "FCQUIC", "QUIC", "TOKIO_QUICHE"],
-        height=5,
-        aspect=0.8,
-    )
-
-    grid.set_axis_labels("Latency (ms)", "Proportion")
-    for _, ax in grid.axes_dict.items():
-        ax.grid(True, alpha=0.4)
-    # plt.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
-    plt.savefig(
-        f"{out_path}/cdfs_{clients_range_str}_{topo_name}_{poisson_str}.svg",
-        bbox_inches="tight",
-    )
-
-
-def plot_boxplot_by_receivers(
-    data_df, clients_range_str, out_path, topo_name, poisson_str
-):
-    plt.figure(figsize=(14, 8))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=14)
-
-    sns.boxplot(
-        data=data_df,
-        x="NUM_CLIENTS",
-        y="y_LATENCY",
-        hue="CURRENT_TEST",
-        palette={
-            "FCQUIC": FCQUIC_COLOR,
-            "FCQUIC_FEC": FCQUIC_FEC_COLOR,
-            "QUIC": BASELINE_QUIC_COLOR,
-            "TCP": BASELINE_TCP_COLOR,
-            "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
-        },
-        hue_order=["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TOKIO_QUICHE"],
-    )
-
-    plt.xlabel("Number of Clients", fontsize=14)
-    plt.ylabel("Latency (ms)", fontsize=14)
-    plt.title(f"Latency Distribution by Number of Clients ({poisson_str})", fontsize=16)
-    plt.grid(True, alpha=0.3, axis="y")
-    plt.legend(title="Protocol")
-    plt.tight_layout()
-    plt.savefig(
-        f"{out_path}/boxplot_per_receiver_{clients_range_str}_{topo_name}_{poisson_str}.png",
-        dpi=350,
+        f"{out_path}/{mean_or_median}_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
 
@@ -289,9 +191,22 @@ def get_median_std_grouped_for_df(df):
         .agg(["median", "std", "count"])
     )
     grouped = grouped.droplevel(axis=1, level=0).reset_index()
-    grouped["ci"] = 1.98 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
     grouped["ci_lower"] = grouped["median"] - grouped["ci"]
     grouped["ci_upper"] = grouped["median"] + grouped["ci"]
+    return grouped
+
+
+def get_mean_std_grouped_for_df(df):
+    grouped = (
+        df[["NUM_CLIENTS", "y_LATENCY"]]
+        .groupby("NUM_CLIENTS")
+        .agg(["mean", "std", "count"])
+    )
+    grouped = grouped.droplevel(axis=1, level=0).reset_index()
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
     return grouped
 
 
@@ -313,7 +228,7 @@ def main(res_path, out_path):
 
     # remove outliers
     # TODO: check if this is okay
-    q = data_df["y_LATENCY"].quantile(0.997)
+    q = data_df["y_LATENCY"].quantile(0.99)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]
 
@@ -355,8 +270,8 @@ def main(res_path, out_path):
     tcp_grouped = get_median_std_grouped_for_df(df_tcp)
     tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
 
-    # plot_avg_lat(data_df, clients_range_str, out_path, topo_name, poisson_str)
     plot_average_latency_vs_receivers(
+        "median",
         fcquic_grouped,
         fcquic_fec_grouped,
         baseline_grouped,
@@ -368,11 +283,24 @@ def main(res_path, out_path):
         out_path,
     )
 
-    plot_cdfs(data_df, clients_range_str, out_path, topo_name, poisson_str)
+    mean_baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
+    mean_fcquic_grouped = get_mean_std_grouped_for_df(df_fcquic)
+    mean_fcquic_fec_grouped = get_mean_std_grouped_for_df(df_fcquic_fec)
+    mean_tcp_grouped = get_mean_std_grouped_for_df(df_tcp)
+    mean_tokio_quiche_grouped = get_mean_std_grouped_for_df(df_tokio_quiche)
 
-    # plot_boxplot_by_receivers(
-    #     data_df, clients_range_str, out_path, topo_name, poisson_str
-    # )
+    plot_average_latency_vs_receivers(
+        "mean",
+        mean_fcquic_grouped,
+        mean_fcquic_fec_grouped,
+        mean_baseline_grouped,
+        mean_tcp_grouped,
+        mean_tokio_quiche_grouped,
+        clients_range_str,
+        topo_name,
+        poisson_str,
+        out_path,
+    )
 
 
 if __name__ == "__main__":

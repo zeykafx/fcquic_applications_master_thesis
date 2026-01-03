@@ -218,6 +218,12 @@ cd $WORKDIR/evaluations/graphs
 
 ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME}
 
+
+# If we ran the latency test, also output the clipped cdf graph
+if [ "$TEST_DIR_NAME" = "latency" ]; then
+    ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} --clip
+fi
+
 echo "Plots written"
 
 # ---------------- Tearing down the topology ----------------

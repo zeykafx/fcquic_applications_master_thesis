@@ -36,7 +36,7 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
-def main(res_path, out_path):
+def main(res_path, out_path, clip):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
@@ -78,9 +78,8 @@ def main(res_path, out_path):
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
     print(f"Tokio-quiche samples: {len_tokio_quiche}")
 
-    # Print per-run statistics if run_index exists
     if "run_index" in data_df.columns:
-        print("\n=== Per-run breakdown ===")
+        print("Per run breakdown")
         for test_name, df_test in [
             ("QUIC", df_baseline),
             ("TCP", df_tcp),
@@ -89,7 +88,7 @@ def main(res_path, out_path):
             ("TOKIO_QUICHE", df_tokio_quiche),
         ]:
             if len(df_test) > 0:
-                print(f"\n{test_name}:")
+                print(f"{test_name}:")
                 run_counts = df_test.groupby("test_index").size()
                 for run_idx, count in run_counts.items():
                     print(f"  Run {run_idx}: {count} samples")
@@ -150,22 +149,30 @@ def main(res_path, out_path):
         )
 
     plt.ylabel("Probability of occurence", fontsize=12)
-    plt.title(f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')}", fontsize=14)
+    plt.title(
+        f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')} {'(clipped)' if clip else ''}",
+        fontsize=14,
+    )
     plt.xlabel("Latency (ms)", fontsize=12)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
+    if clip:
+        plt.xlim(left=21, right=26)
     plt.legend()
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
+    clip_str = "_clipped" if clip else ""
+    if clip:
+        out_path=f"{out_path}/clipped"
+    # plt.savefig(
+    #     f"{out_path}/cdf_{topo_name}_{poisson_str}{clip_str}.png",
+    #     dpi=350,
+    #     bbox_inches="tight",
+    # )
     plt.savefig(
-        f"{out_path}/cdf_{topo_name}_{poisson_str}.png",
-        dpi=350,
-        bbox_inches="tight",
-    )
-    plt.savefig(
-        f"{out_path}/cdf_{topo_name}_{poisson_str}.svg",
+        f"{out_path}/cdf_{topo_name}_{poisson_str}{clip_str}.svg",
         bbox_inches="tight",
     )
 
@@ -174,7 +181,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("plots")
     parser.add_argument("file_path", type=file_path)
     parser.add_argument("out_path", type=dir_path)
-    # parser.add_argument("-n", "--name", type=str,)
+    parser.add_argument(
+        "--clip",
+        action="store_true",
+    )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path)
+    main(args.file_path, args.out_path, args.clip)
