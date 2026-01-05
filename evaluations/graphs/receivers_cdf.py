@@ -62,7 +62,7 @@ def plot_average_latency_vs_receivers(
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-    bax = brokenaxes(ylims=((0, 0.5), (5.2, 7.4)), hspace=0.12)
+    bax = brokenaxes(ylims=((0, 0.5), (5.5, 8)), hspace=0.12)
 
     # FCQUIC
     x_fcquic = fcquic_grouped["NUM_CLIENTS"]
