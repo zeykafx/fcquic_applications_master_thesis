@@ -166,12 +166,15 @@ def plot_average_latency_vs_receivers(
 
     # bax.set_xlabel("Number of clients", fontsize=12)
     bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
-    bax.set_ylabel(f"{mean_or_median} Latency (ms)", fontsize=12, labelpad=40)
+    bax.set_ylabel(
+        f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40
+    )
 
     bax.grid(True, alpha=0.3)
     bax.legend(loc="lower right")
     plt.title(
-        f"{mean_or_median} latency vs number of clients ({poisson_str})", fontsize=14
+        f"{mean_or_median.capitalize()} latency vs number of clients ({poisson_str})",
+        fontsize=14,
     )
     # plt.savefig(
     #     f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",

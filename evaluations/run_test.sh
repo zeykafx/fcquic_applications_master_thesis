@@ -27,11 +27,12 @@ TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers_0%_loss"
 USE_POISSON="false"
 TAGS_TO_USE=""
-GRAPH_SCRIPT_TO_USE="$TEST_DIR_NAME"
 
 if [ $# -ge 1 ] && [ -n "$1" ]; then
     TEST_DIR_NAME="$1"
 fi
+
+GRAPH_SCRIPT_TO_USE="$TEST_DIR_NAME"
 
 if [ $# -ge 2 ] && [ -n "$2" ]; then
     TOPO_CONF_NAME="$2"

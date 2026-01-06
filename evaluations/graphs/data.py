@@ -63,7 +63,8 @@ def plot_avg_lat_vs_add_size(
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-    bax = brokenaxes(ylims=((0, 0.5), (5.5, 10)), hspace=0.12)
+    # bax = brokenaxes(ylims=((0, 0.5), (5, 45.0)), hspace=0.1)
+    bax = plt
 
     # FCQUIC
     x_fcquic = fcquic_grouped["ADDITIONAL_DATA_SIZE"]
@@ -165,17 +166,19 @@ def plot_avg_lat_vs_add_size(
         alpha=CONFIDENCE_BAND_OPACITY,
     )
 
-    bax.set_xlabel("Message size in bytes", fontsize=12, labelpad=25)
-    bax.set_ylabel(f"{mean_or_median} Latency (ms)", fontsize=12, labelpad=40)
+    # bax.set_xlabel("Message size in bytes", fontsize=12, labelpad=25)
+    bax.xlabel("Message size in bytes", fontsize=12, labelpad=25)
+    # bax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40)
+    bax.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40)
 
     bax.grid(True, alpha=0.3)
-    bax.legend(loc="lower right")
-    plt.title(f"{mean_or_median} latency vs Message size ({poisson_str})", fontsize=14)
-    # plt.savefig(
-    #     f"{out_path}/avg_lat_{add_data_range_str}_{topo_name}_{poisson_str}.png",
-    #     dpi=350,
-    #     bbox_inches="tight",
-    # )
+    bax.legend(loc="upper left")
+    plt.title(f"{mean_or_median.capitalize()} latency vs Message size ({poisson_str})", fontsize=14)
+    plt.savefig(
+        f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
     plt.savefig(
         f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
@@ -236,7 +239,7 @@ def main(res_path, out_path):
 
     add_data_sizes = data_df["ADDITIONAL_DATA_SIZE"].unique()
     add_data_range_str = f"{add_data_sizes[0]}-{add_data_sizes[-1]}"
-    print(f"Additional data sizes tested: {num_clients}")
+    print(f"Additional data sizes tested: {add_data_range_str}")
 
     df_baseline = data_df[data_df["CURRENT_TEST"] == "QUIC"]
     df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
