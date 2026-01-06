@@ -1,6 +1,5 @@
 # use a default topology name if no argument is provided, otherwise use the provided argument as the topo name
 
-
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "Usage: $0 [TEST_DIR_NAME] [TOPO_CONF_NAME] [USE_POISSON]"
     echo ""
@@ -28,7 +27,7 @@ TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers_0%_loss"
 USE_POISSON="false"
 TAGS_TO_USE=""
-GRAPH_SCRIPT_TO_USE="receivers_cdf"
+GRAPH_SCRIPT_TO_USE="$TEST_DIR_NAME"
 
 if [ $# -ge 1 ] && [ -n "$1" ]; then
     TEST_DIR_NAME="$1"
@@ -54,7 +53,8 @@ fi
 
 if [ "$TEST_DIR_NAME" = "latency" ]; then
     TAGS_TO_USE="--tags latency"
-    GRAPH_SCRIPT_TO_USE="latency_cdf"
+elif [ "$TEST_DIR_NAME" = "data" ]; then
+    TAGS_TO_USE="--tags data"
 fi
 
 echo "Running tests for topology: ${TEST_DIR_NAME}/${TOPO_CONF_NAME}, Sending with: ${POISSON_STR}"

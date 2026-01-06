@@ -10,6 +10,8 @@ evaluations/tests/latency/graphs/__pycache__/*
 
 evaluations/tests/receivers/bin/*
 evaluations/tests/receivers/logs/*
+evaluations/tests/data/logs/*
+evaluations/tests/data/bin/*
 
 **/cert.crt
 **/cert.key
@@ -17,3 +19,4 @@ evaluations/tests/receivers/logs/*
 fcquic_chat/logs/*
 fcquic_chat/tcp_logs/*
 fcquic_chat/baseline_logs/*
+fcquic_chat/tquic_logs/*

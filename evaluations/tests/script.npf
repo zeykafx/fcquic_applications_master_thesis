@@ -32,15 +32,28 @@ MIN_INTERVAL=10
 LAMBDA=0.100
 TEST_LENGTH=10
 FALLBACK_DELAY=200
+ADDITIONAL_DATA_SIZE=1000
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
 latency:NUM_CLIENTS=4
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
-latency:INTERVAL=50
+latency:INTERVAL=100
 latency:LAMBDA=0.100
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
+// # latency:ADDITIONAL_DATA_SIZE=1100
+latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+// # ------------- additional data test -------------
+data:CURRENT_TEST={"FCQUIC_FEC","FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
+data:NUM_CLIENTS=75
+data:TEST_DIR_NAME="data"
+data:TOPO_CONF_NAME="data"
+data:INTERVAL=100
+data:LAMBDA=0.100
+data:TEST_LENGTH=10
+data:FALLBACK_DELAY=200
+data:ADDITIONAL_DATA_SIZE={0,500,1000,2000,3000,6000}
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
 TCP_NODELAY="true"
@@ -227,10 +240,11 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 	echo "starting client ${CLIENT_ID}"
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
-    CLIENT_ARGS=""
+
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
     if [ "$CLIENT_ID" = "1" ]; then
   		echo "client${CLIENT_ID} is the sender"
-       	CLIENT_ARGS="--sender"
+       	CLIENT_ARGS="$CLIENT_ARGS --sender"
     fi
 
     if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
@@ -249,9 +263,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
     	LOG_FILENAME=${RUN_LOGS_DIR_BASELINE_NUM_CLIENTS}/client${CLIENT_ID}.log
 
 		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_BASELINE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-client https://10.10.0.2:4433 \
-			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL}  < /dev/null 2> ${LOG_FILENAME} &
+			${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 
 	elif [ "$CURRENT_TEST" = "TCP" ]; then
 
@@ -262,18 +274,14 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 	    fi
 
 		sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-client https://10.10.0.2:4433 \
-		-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-		--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-		--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+		    ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 
 	elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
 
 		LOG_FILENAME=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS}/client${CLIENT_ID}.log
 
 		sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tquic-client https://10.10.0.2:4433 \
-			-u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 
     else
 
@@ -288,9 +296,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 	    fi
 
 	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
-			-l 10.10.${CLIENT_ID}.2 --flexicast -u CLIENT${CLIENT_ID} --length $TEST_LENGTH \
-			--test-mode ${CLIENT_ARGS} --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} \
-			--interval ${INTERVAL} --min-interval ${MIN_INTERVAL} < /dev/null 2> ${LOG_FILENAME} &
+			-l 10.10.${CLIENT_ID}.2 --flexicast ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 	fi
 
 	# sleep 0.01
