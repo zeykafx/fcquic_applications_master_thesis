@@ -35,15 +35,15 @@ FALLBACK_DELAY=200
 ADDITIONAL_DATA_SIZE=1000
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC","TCP","TOKIO_QUICHE"}
-latency:NUM_CLIENTS=4
+latency:NUM_CLIENTS=2
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
 latency:LAMBDA=0.100
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
-// # latency:ADDITIONAL_DATA_SIZE=1100
-latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
 // # data:NUM_CLIENTS=75
@@ -121,7 +121,7 @@ cp ./cert.key $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.key
 
 
 // ------------------------ SERVER ------------------------
-%script@server sudo=true
+%script@server sudo=true delay=2
 
 # Kill any server or client application still running
 pkill quic-client || true
