@@ -15,6 +15,9 @@ from style import (
     BASELINE_TCP_COLOR,
     BASELINE_TCP_LINESTYLE,
     BASELINE_TCP_MARKER,
+    BASELINE_TCP_NO_TLS_COLOR,
+    BASELINE_TCP_NO_TLS_LINESTYLE,
+    BASELINE_TCP_NO_TLS_MARKER,
     CONFIDENCE_BAND_OPACITY,
     FCQUIC_COLOR,
     FCQUIC_FEC_COLOR,
@@ -51,6 +54,7 @@ def plot_average_latency_vs_receivers(
     fcquic_fec_grouped,
     baseline_grouped,
     tcp_grouped,
+    tcp_no_tls_grouped,
     tokio_quiche_grouped,
     clients_range_str,
     topo_name,
@@ -65,104 +69,130 @@ def plot_average_latency_vs_receivers(
     bax = brokenaxes(ylims=((0, 0.5), (5.5, 10)), hspace=0.12)
 
     # FCQUIC
-    x_fcquic = fcquic_grouped["NUM_CLIENTS"]
-    bax.plot(
-        x_fcquic,
-        fcquic_grouped[mean_or_median],
-        label="FC-QUIC",
-        color=FCQUIC_COLOR,
-        linestyle=FCQUIC_LINESTYLE,
-        marker=FCQUIC_MARKER,
-        markersize=MARKERSIZE,
-        lw=LINEWIDTH,
-    )
-    bax.fill_between(
-        x_fcquic,
-        fcquic_grouped["ci_lower"],
-        fcquic_grouped["ci_upper"],
-        color=FCQUIC_COLOR,
-        alpha=CONFIDENCE_BAND_OPACITY,
-    )
+    if len(fcquic_grouped) > 0:
+        x_fcquic = fcquic_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_fcquic,
+            fcquic_grouped[mean_or_median],
+            label="FC-QUIC",
+            color=FCQUIC_COLOR,
+            linestyle=FCQUIC_LINESTYLE,
+            marker=FCQUIC_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_fcquic,
+            fcquic_grouped["ci_lower"],
+            fcquic_grouped["ci_upper"],
+            color=FCQUIC_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
 
     # FCQUIC-FEC
-    x_fcquic_fec = fcquic_fec_grouped["NUM_CLIENTS"]
-    bax.plot(
-        x_fcquic_fec,
-        fcquic_fec_grouped[mean_or_median],
-        label="FC-QUIC with FEC",
-        color=FCQUIC_FEC_COLOR,
-        linestyle=FCQUIC_FEC_LINESTYLE,
-        marker=FCQUIC_FEC_MARKER,
-        markersize=MARKERSIZE,
-        lw=LINEWIDTH,
-    )
-    bax.fill_between(
-        x_fcquic_fec,
-        fcquic_fec_grouped["ci_lower"],
-        fcquic_fec_grouped["ci_upper"],
-        color=FCQUIC_FEC_COLOR,
-        alpha=CONFIDENCE_BAND_OPACITY,
-    )
+    if len(fcquic_fec_grouped) > 0:
+        x_fcquic_fec = fcquic_fec_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_fcquic_fec,
+            fcquic_fec_grouped[mean_or_median],
+            label="FC-QUIC with FEC",
+            color=FCQUIC_FEC_COLOR,
+            linestyle=FCQUIC_FEC_LINESTYLE,
+            marker=FCQUIC_FEC_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_fcquic_fec,
+            fcquic_fec_grouped["ci_lower"],
+            fcquic_fec_grouped["ci_upper"],
+            color=FCQUIC_FEC_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
 
     # Baseline QUIC
-    x_baseline = baseline_grouped["NUM_CLIENTS"]
-    bax.plot(
-        x_baseline,
-        baseline_grouped[mean_or_median],
-        label="Baseline QUIC",
-        color=BASELINE_QUIC_COLOR,
-        linestyle=BASELINE_QUIC_LINESTYLE,
-        marker=BASELINE_QUIC_MARKER,
-        markersize=MARKERSIZE,
-        lw=LINEWIDTH,
-    )
-    bax.fill_between(
-        x_baseline,
-        baseline_grouped["ci_lower"],
-        baseline_grouped["ci_upper"],
-        color=BASELINE_QUIC_COLOR,
-        alpha=CONFIDENCE_BAND_OPACITY,
-    )
+    if len(baseline_grouped) > 0:
+        x_baseline = baseline_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_baseline,
+            baseline_grouped[mean_or_median],
+            label="Baseline QUIC",
+            color=BASELINE_QUIC_COLOR,
+            linestyle=BASELINE_QUIC_LINESTYLE,
+            marker=BASELINE_QUIC_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_baseline,
+            baseline_grouped["ci_lower"],
+            baseline_grouped["ci_upper"],
+            color=BASELINE_QUIC_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
 
     # TCP
-    x_tcp = tcp_grouped["NUM_CLIENTS"]
-    bax.plot(
-        x_tcp,
-        tcp_grouped[mean_or_median],
-        label="Baseline TCP (+TLS)",
-        color=BASELINE_TCP_COLOR,
-        linestyle=BASELINE_TCP_LINESTYLE,
-        marker=BASELINE_TCP_MARKER,
-        markersize=MARKERSIZE,
-        lw=LINEWIDTH,
-    )
-    bax.fill_between(
-        x_tcp,
-        tcp_grouped["ci_lower"],
-        tcp_grouped["ci_upper"],
-        color=BASELINE_TCP_COLOR,
-        alpha=CONFIDENCE_BAND_OPACITY,
-    )
+    if len(tcp_grouped) > 0:
+        x_tcp = tcp_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_tcp,
+            tcp_grouped[mean_or_median],
+            label="Baseline TCP (+TLS)",
+            color=BASELINE_TCP_COLOR,
+            linestyle=BASELINE_TCP_LINESTYLE,
+            marker=BASELINE_TCP_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_tcp,
+            tcp_grouped["ci_lower"],
+            tcp_grouped["ci_upper"],
+            color=BASELINE_TCP_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
+
+    # TCP NO TLS
+    if len(tcp_no_tls_grouped) > 0:
+        x_tcp_no_tls = tcp_no_tls_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_tcp_no_tls,
+            tcp_no_tls_grouped[mean_or_median],
+            label="Baseline TCP (NO TLS)",
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
+            marker=BASELINE_TCP_NO_TLS_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_tcp_no_tls,
+            tcp_no_tls_grouped["ci_lower"],
+            tcp_no_tls_grouped["ci_upper"],
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
 
     # Tokio-quiche
-    x_tokio_quiche = tokio_quiche_grouped["NUM_CLIENTS"]
-    bax.plot(
-        x_tokio_quiche,
-        tokio_quiche_grouped[mean_or_median],
-        label="Tokio-quiche",
-        color=TOKIO_QUICHE_COLOR,
-        linestyle=TOKIO_QUICHE_LINESTYLE,
-        marker=TOKIO_QUICHE_MARKER,
-        markersize=MARKERSIZE,
-        lw=LINEWIDTH,
-    )
-    bax.fill_between(
-        x_tokio_quiche,
-        tokio_quiche_grouped["ci_lower"],
-        tokio_quiche_grouped["ci_upper"],
-        color=TOKIO_QUICHE_COLOR,
-        alpha=CONFIDENCE_BAND_OPACITY,
-    )
+    if len(tokio_quiche_grouped) > 0:
+        x_tokio_quiche = tokio_quiche_grouped["NUM_CLIENTS"]
+        bax.plot(
+            x_tokio_quiche,
+            tokio_quiche_grouped[mean_or_median],
+            label="Tokio-quiche",
+            color=TOKIO_QUICHE_COLOR,
+            linestyle=TOKIO_QUICHE_LINESTYLE,
+            marker=TOKIO_QUICHE_MARKER,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            x_tokio_quiche,
+            tokio_quiche_grouped["ci_lower"],
+            tokio_quiche_grouped["ci_upper"],
+            color=TOKIO_QUICHE_COLOR,
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
 
     # bax.set_xlabel("Number of clients", fontsize=12)
     bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
@@ -248,16 +278,19 @@ def main(res_path, out_path):
     df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
     df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
     df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
+    df_tcp_no_tls = data_df[data_df["CURRENT_TEST"] == "TCP_NO_TLS"]
     df_tokio_quiche = data_df[data_df["CURRENT_TEST"] == "TOKIO_QUICHE"]
 
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
     len_fcquic_fec = len(df_fcquic_fec)
     len_tcp = len(df_tcp)
+    len_tcp_no_tls = len(df_tcp_no_tls)
     len_tokio_quiche = len(df_tokio_quiche)
 
     print(f"Baseline QUIC samples: {len_baseline}")
     print(f"Baseline TCP samples: {len_tcp}")
+    print(f"Baseline TCP (NO TLS) samples: {len_tcp_no_tls}")
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
     print(f"Tokio-quiche samples: {len_tokio_quiche}")
@@ -271,6 +304,7 @@ def main(res_path, out_path):
     fcquic_grouped = get_median_std_grouped_for_df(df_fcquic)
     fcquic_fec_grouped = get_median_std_grouped_for_df(df_fcquic_fec)
     tcp_grouped = get_median_std_grouped_for_df(df_tcp)
+    tcp_no_tls_grouped = get_median_std_grouped_for_df(df_tcp_no_tls)
     tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
 
     plot_average_latency_vs_receivers(
@@ -279,6 +313,7 @@ def main(res_path, out_path):
         fcquic_fec_grouped,
         baseline_grouped,
         tcp_grouped,
+        tcp_no_tls_grouped,
         tokio_quiche_grouped,
         clients_range_str,
         topo_name,
@@ -290,6 +325,7 @@ def main(res_path, out_path):
     mean_fcquic_grouped = get_mean_std_grouped_for_df(df_fcquic)
     mean_fcquic_fec_grouped = get_mean_std_grouped_for_df(df_fcquic_fec)
     mean_tcp_grouped = get_mean_std_grouped_for_df(df_tcp)
+    mean_tcp_no_tls_grouped = get_mean_std_grouped_for_df(df_tcp_no_tls)
     mean_tokio_quiche_grouped = get_mean_std_grouped_for_df(df_tokio_quiche)
 
     plot_average_latency_vs_receivers(
@@ -298,6 +334,7 @@ def main(res_path, out_path):
         mean_fcquic_fec_grouped,
         mean_baseline_grouped,
         mean_tcp_grouped,
+        mean_tcp_no_tls_grouped,
         mean_tokio_quiche_grouped,
         clients_range_str,
         topo_name,

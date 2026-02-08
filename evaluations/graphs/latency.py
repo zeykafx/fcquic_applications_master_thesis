@@ -11,6 +11,8 @@ from style import (
     BASELINE_QUIC_LINESTYLE,
     BASELINE_TCP_COLOR,
     BASELINE_TCP_LINESTYLE,
+    BASELINE_TCP_NO_TLS_COLOR,
+    BASELINE_TCP_NO_TLS_LINESTYLE,
     FCQUIC_COLOR,
     FCQUIC_FEC_COLOR,
     FCQUIC_FEC_LINESTYLE,
@@ -90,16 +92,19 @@ def process_and_plot(
     df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
     df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
     df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
+    df_tcp_no_tls = data_df[data_df["CURRENT_TEST"] == "TCP_NO_TLS"]
     df_tokio_quiche = data_df[data_df["CURRENT_TEST"] == "TOKIO_QUICHE"]
 
     len_fcquic = len(df_fcquic)
     len_baseline = len(df_baseline)
     len_fcquic_fec = len(df_fcquic_fec)
     len_tcp = len(df_tcp)
+    len_tcp_no_tls = len(df_tcp_no_tls)
     len_tokio_quiche = len(df_tokio_quiche)
 
     print(f"Baseline QUIC samples: {len_baseline}")
     print(f"Baseline TCP samples: {len_tcp}")
+    print(f"Baseline TCP (NO TLS) samples: {len_tcp_no_tls}")
     print(f"FC-QUIC samples: {len_fcquic}")
     print(f"FC-QUIC with FEC samples: {len_fcquic_fec}")
     print(f"Tokio-quiche samples: {len_tokio_quiche}")
@@ -109,6 +114,7 @@ def process_and_plot(
         for test_name, df_test in [
             ("QUIC", df_baseline),
             ("TCP", df_tcp),
+            ("TCP_NO_TLS", df_tcp_no_tls),
             ("FCQUIC", df_fcquic),
             ("FCQUIC_FEC", df_fcquic_fec),
             ("TOKIO_QUICHE", df_tokio_quiche),
@@ -163,6 +169,14 @@ def process_and_plot(
             label="Baseline TCP (+TLS)",
             color=BASELINE_TCP_COLOR,
             linestyle=BASELINE_TCP_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp_no_tls) > 0:
+        plt.ecdf(
+            (df_tcp_no_tls["y_LATENCY"] / 1000),
+            label="Baseline TCP (NO TLS)",
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
             lw=LINEWIDTH,
         )
     if len(df_tokio_quiche) > 0:

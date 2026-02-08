@@ -79,6 +79,7 @@ DIR=./logs
 # looking for previous baseline run
 PREV_RUN_NBR_BASELINE=$(find "${DIR}" -maxdepth 1 -type d -name '*_baseline' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 PREV_RUN_NBR_TCP=$(find "${DIR}" -maxdepth 1 -type d -name '*_tcp' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
+PREV_RUN_NBR_TCP_NO_TLS=$(find "${DIR}" -maxdepth 1 -type d -name '*_tcp_no_tls' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 # looking for previous fcquic run
 PREV_RUN_NBR_FCQUIC_NO_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_no_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
 PREV_RUN_NBR_FCQUIC_FEC=$(find "${DIR}" -maxdepth 1 -type d -name '*_fcquic_fec' -printf '%f\n' 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -n 1)
@@ -111,6 +112,17 @@ LOGS_BASE_DIR_TCP="${LOGS_BASE_DIR_TCP}_tcp"
 sudo mkdir ${LOGS_BASE_DIR_TCP}
 RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}
 
+# ------------ BASELINE TCP (NO TLS) ------------
+
+# setup tcp_no_tls logs directory
+PREV_RUN_NBR_TCP=${PREV_RUN_NBR_TCP_NO_TLS:-0}
+CUR_RUN_TCP_NO_TLS=$(echo "${PREV_RUN_NBR_TCP_NO_TLS}+1" | bc)
+LOGS_BASE_DIR_TCP_NO_TLS=${DIR}/${CUR_RUN_TCP_NO_TLS}
+
+LOGS_BASE_DIR_TCP_NO_TLS="${LOGS_BASE_DIR_TCP_NO_TLS}_tcp_no_tls"
+
+sudo mkdir ${LOGS_BASE_DIR_TCP_NO_TLS}
+RUN_LOGS_DIR_TCP_NO_TLS=${LOGS_BASE_DIR_TCP_NO_TLS}
 # ------------ FCQUIC NO FEC ------------
 
 # Setup fcquic logs directory
@@ -145,6 +157,7 @@ RUN_LOGS_DIR_TOKIO_QUICHE=${LOGS_BASE_DIR_TOKIO_QUICHE}
 
 echo "RUN_LOGS_DIR_BASELINE=${LOGS_BASE_DIR_BASELINE}"
 echo "RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}"
+echo "RUN_LOGS_DIR_TCP_NO_TLS=${LOGS_BASE_DIR_TCP_NO_TLS}"
 echo "RUN_LOGS_DIR_FCQUIC_NO_FEC=${LOGS_BASE_DIR_FCQUIC_NO_FEC}"
 echo "RUN_LOGS_DIR_FCQUIC_FEC=${LOGS_BASE_DIR_FCQUIC_FEC}"
 echo "RUN_LOGS_DIR_TOKIO_QUICHE=${LOGS_BASE_DIR_TOKIO_QUICHE}"
@@ -200,6 +213,7 @@ sudo -E ./venv/bin/npf-run --test ./tests/script.npf \
     RUN_LOGS_DIR_FCQUIC_FEC=$RUN_LOGS_DIR_FCQUIC_FEC \
     RUN_LOGS_DIR_BASELINE=$RUN_LOGS_DIR_BASELINE \
     RUN_LOGS_DIR_TCP=$RUN_LOGS_DIR_TCP \
+    RUN_LOGS_DIR_TCP_NO_TLS=$RUN_LOGS_DIR_TCP_NO_TLS \
     RUN_LOGS_DIR_TOKIO_QUICHE=$RUN_LOGS_DIR_TOKIO_QUICHE \
     CARGO_PATH=$CARGO_PATH \
     TEST_DIR_NAME=$TEST_DIR_NAME \
@@ -221,9 +235,9 @@ cd $WORKDIR/evaluations/graphs
 
 
 # If we ran the latency test, also output the clipped cdf graph
-if [ "$TEST_DIR_NAME" = "latency" ]; then
-    ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} --clip
-fi
+# if [ "$TEST_DIR_NAME" = "latency" ]; then
+#     ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} --clip
+# fi
 
 echo "Plots written"
 
