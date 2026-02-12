@@ -19,45 +19,46 @@ BIN_LOG_LEVEL="warn"
 // # ------------- RECEIVERS TEST -------------
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers"
-CURRENT_TEST={"FCQUIC","TCP","TOKIO_QUICHE"}
-NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
-// # NUM_CLIENTS={3,11,23,35}
+CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
+// # NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
+// # NUM_CLIENTS={2,3,7,15,23,35}
 // # NUM_CLIENTS={3,9,15,21,27,33}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25}
-// # NUM_CLIENTS={3,7,11,15,19,25}
-// # NUM_CLIENTS={3,5,7,9,11}
+NUM_CLIENTS={2,3,7,11,15,19,23}
+// # NUM_CLIENTS={2,3,5,7,9,11}
 INTERVAL=100
-MIN_INTERVAL=5
+MIN_INTERVAL=1
 LAMBDA=0.100
 TEST_LENGTH=10
 FALLBACK_DELAY=200
-ADDITIONAL_DATA_SIZE=1000
+ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 latency:NUM_CLIENTS=3
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=0.10
+latency:LAMBDA=0.010
 // # latency:LAMBDA=0.100
 latency:MIN_INTERVAL=1
-// #latency:MIN_INTERVAL=10
+// # latency:MIN_INTERVAL=10
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
 latency:ADDITIONAL_DATA_SIZE=1100
 // # latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
-data:CURRENT_TEST={"FCQUIC","QUIC","TCP","TOKIO_QUICHE"}
+data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 // # data:NUM_CLIENTS=75
-data:NUM_CLIENTS=13
+data:NUM_CLIENTS=11
 data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
-data:LAMBDA=0.100
+data:LAMBDA=0.010
+data:MIN_INTERVAL=1
 data:TEST_LENGTH=10
 data:FALLBACK_DELAY=200
-data:ADDITIONAL_DATA_SIZE={0,750,1500,2500,3000,3500}
+data:ADDITIONAL_DATA_SIZE={0,500,1400,2000,3000}
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
 TCP_NODELAY="true"
@@ -79,7 +80,9 @@ CARGO_PATH=""
 # ------ Pre setup ------
 # Setting buffer values
 sudo sysctl -w net.core.rmem_max=26214400
-sudo sysctl -w net.core.rmem_default=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+# Disable slow start after idle
+sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
 
 # ------------------------ Building App ------------------------
 
@@ -93,7 +96,7 @@ echo "Building project"
 
 if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    $CARGO_PATH build --release > /dev/null
+    RUSTFLAGS="-C target-cpu=native" $CARGO_PATH build --release > /dev/null
 
    	cp ./target/release/quic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-server
     cp ./target/release/quic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-client

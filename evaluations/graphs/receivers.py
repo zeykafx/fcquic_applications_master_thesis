@@ -57,16 +57,18 @@ def plot_average_latency_vs_receivers(
     tcp_no_tls_grouped,
     tokio_quiche_grouped,
     clients_range_str,
+    client_range,
     topo_name,
     poisson_str,
+    add_data,
     out_path,
 ):
-    height = 9.5
-    width = 9
+    height = 11
+    width = 11
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-    bax = brokenaxes(ylims=((0, 0.5), (5.5, 10)), hspace=0.12)
+    bax = brokenaxes(ylims=((0, 0.5), (5.5, 9)), hspace=0.10)
 
     # FCQUIC
     if len(fcquic_grouped) > 0:
@@ -194,16 +196,16 @@ def plot_average_latency_vs_receivers(
             alpha=CONFIDENCE_BAND_OPACITY,
         )
 
-    # bax.set_xlabel("Number of clients", fontsize=12)
     bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
+
     bax.set_ylabel(
         f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40
     )
 
     bax.grid(True, alpha=0.3)
-    bax.legend(loc="lower right")
+    bax.legend(loc="upper left")
     plt.title(
-        f"{mean_or_median.capitalize()} latency vs number of clients ({poisson_str})",
+        f"{mean_or_median.capitalize()} latency vs number of clients ({poisson_str}) (additional data: {add_data}B)",
         fontsize=14,
     )
     # plt.savefig(
@@ -245,6 +247,7 @@ def get_mean_std_grouped_for_df(df):
 
 def main(res_path, out_path):
     data_df = pd.read_csv(res_path)
+    data_df["NUM_CLIENTS"] = data_df["NUM_CLIENTS"].astype(int)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
     poisson = data_df["POISSON"][0]
@@ -255,6 +258,9 @@ def main(res_path, out_path):
 
     poisson_str = "poisson" if is_poisson else "uniform"
     print(f"is poisson?: {is_poisson}")
+
+    additional_data = data_df["ADDITIONAL_DATA_SIZE"][0]
+    print(f"additional data: {additional_data}")
 
     # clean up the messy quotes that npf adds
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
@@ -270,6 +276,8 @@ def main(res_path, out_path):
 
     num_clients = data_df["NUM_CLIENTS"].unique()
     clients_range_str = f"{num_clients[0]}-{num_clients[-1]}"
+
+    client_range = np.arange(num_clients[0], num_clients[-1], 1)
     print(
         f"Number of clients for this test: {num_clients} -> range: {clients_range_str}"
     )
@@ -316,8 +324,10 @@ def main(res_path, out_path):
         tcp_no_tls_grouped,
         tokio_quiche_grouped,
         clients_range_str,
+        client_range,
         topo_name,
         poisson_str,
+        additional_data,
         out_path,
     )
 
@@ -337,8 +347,10 @@ def main(res_path, out_path):
         mean_tcp_no_tls_grouped,
         mean_tokio_quiche_grouped,
         clients_range_str,
+        client_range,
         topo_name,
         poisson_str,
+        additional_data,
         out_path,
     )
 
