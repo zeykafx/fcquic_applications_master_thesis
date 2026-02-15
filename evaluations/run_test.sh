@@ -180,7 +180,7 @@ echo "Set up topologies, now waiting for convergence"
 
 # code from https://github.com/Aperence/FFSexp3-master-thesis/blob/57364d1b4244bb2c1c259dd4c41047670ab82b9a/evaluation/npfs/experiment.npf//L74
 
-CLIENT_ID_CONVERGENCE_TEST=2
+CLIENT_ID_CONVERGENCE_TEST=1
 echo "Testing convergence from client${CLIENT_ID_CONVERGENCE_TEST}"
 
 converged=false

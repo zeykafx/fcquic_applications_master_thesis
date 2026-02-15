@@ -3,7 +3,7 @@
 // # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
 
 %info
-FCQUIC (with and without FEC) vs QUIC vs TCP (with TLS)
+FCQUIC vs QUIC vs TCP (with TLS)
 
 %config
 n_runs=3
@@ -35,30 +35,30 @@ FALLBACK_DELAY=200
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
-latency:NUM_CLIENTS=3
+latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=0.010
+latency:LAMBDA=0.1
 // # latency:LAMBDA=0.100
 latency:MIN_INTERVAL=1
 // # latency:MIN_INTERVAL=10
 latency:TEST_LENGTH=10
 latency:FALLBACK_DELAY=200
-latency:ADDITIONAL_DATA_SIZE=1100
-// # latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+// # latency:ADDITIONAL_DATA_SIZE=1100
+latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 // # data:NUM_CLIENTS=75
-data:NUM_CLIENTS=11
+data:NUM_CLIENTS=7
 data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
-data:LAMBDA=0.010
+data:LAMBDA=0.100
 data:MIN_INTERVAL=1
 data:TEST_LENGTH=10
 data:FALLBACK_DELAY=200
-data:ADDITIONAL_DATA_SIZE={0,500,1400,2000,3000}
+data:ADDITIONAL_DATA_SIZE={0,500,1100,2200,3000}
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
 TCP_NODELAY="true"
@@ -269,6 +269,11 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
 
     CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+
+    if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
+        # if there is only one client, make that client compute the latency
+       	CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
+    fi
     if [ "$CLIENT_ID" = "1" ]; then
   		echo "client${CLIENT_ID} is the sender"
        	CLIENT_ARGS="$CLIENT_ARGS --sender"

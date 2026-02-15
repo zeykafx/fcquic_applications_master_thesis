@@ -14,16 +14,16 @@ from topo import Topology
 
 verbose = False
 
-bandwidth_source = "30Mbit"
-bandwidth_high = "12.5Mbit"
-bandwidth_medium = "6.5Mbit"
-bandwidth_low = "3.5Mbit"
+bandwidth_source = "100Mbit"
+bandwidth_high = "100Mbit"
+bandwidth_medium = "50Mbit"
+bandwidth_low = "10Mbit"
 
 default_bandwidth = bandwidth_source
 default_multicast_enabled_router = True
 default_multicast_enabled_link = True
 default_delay = "1ms"
-default_buffer = 1000  # buffer size in packets
+default_buffer = 10000 
 default_loss = "0%"
 default_loss_burst_percentage = "10%"
 default_rp_id = 1

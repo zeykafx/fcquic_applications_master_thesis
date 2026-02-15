@@ -2,24 +2,34 @@
 
 import argparse
 import os
+import re
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from style import (
     BASELINE_QUIC_COLOR,
     BASELINE_QUIC_LINESTYLE,
+    BASELINE_QUIC_MARKER,
     BASELINE_TCP_COLOR,
     BASELINE_TCP_LINESTYLE,
+    BASELINE_TCP_MARKER,
     BASELINE_TCP_NO_TLS_COLOR,
     BASELINE_TCP_NO_TLS_LINESTYLE,
+    BASELINE_TCP_NO_TLS_MARKER,
+    CONFIDENCE_BAND_OPACITY,
     FCQUIC_COLOR,
     FCQUIC_FEC_COLOR,
     FCQUIC_FEC_LINESTYLE,
+    FCQUIC_FEC_MARKER,
     FCQUIC_LINESTYLE,
+    FCQUIC_MARKER,
     LINEWIDTH,
+    MARKERSIZE,
     TOKIO_QUICHE_COLOR,
     TOKIO_QUICHE_LINESTYLE,
+    TOKIO_QUICHE_MARKER,
     latexify,
 )
 
@@ -47,6 +57,10 @@ def main(res_path, out_path, clip):
     poisson_str = "poisson" if is_poisson else "uniform"
     print(f"is poisson?: {is_poisson}")
 
+    # get the bandwidth from the topo name, it's always near the end of the title (e.g. tiny_10mbps)
+    bw_match = re.search(r"(\d+)\s*[Mm]bps", topo_name)
+    bw_mbps = int(bw_match.group(1)) if bw_match else None
+
     # clean up the messy quotes that npf adds
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
@@ -71,6 +85,237 @@ def main(res_path, out_path, clip):
             is_poisson,
             data_size,
         )
+
+    plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_mbps)
+
+
+def get_median_std_grouped_for_df(df):
+    grouped = (
+        df[["ADDITIONAL_DATA_SIZE", "y_LATENCY"]]
+        .groupby("ADDITIONAL_DATA_SIZE")
+        .agg(["median", "std", "count"])
+    )
+    grouped = grouped.droplevel(axis=1, level=0).reset_index()
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["median"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["median"] + grouped["ci"]
+    return grouped
+
+
+def get_mean_std_grouped_for_df(df):
+    grouped = (
+        df[["ADDITIONAL_DATA_SIZE", "y_LATENCY"]]
+        .groupby("ADDITIONAL_DATA_SIZE")
+        .agg(["mean", "std", "count"])
+    )
+    grouped = grouped.droplevel(axis=1, level=0).reset_index()
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
+    return grouped
+
+
+def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_mbps):
+    if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
+        print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
+        return
+
+    # remove outliers
+    # NOTE: is this okay to do???
+    q = data_df["y_LATENCY"].quantile(0.995)
+    print(f"Outlier threshold: {q}")
+    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+
+    # from microseconds to milliseconds
+    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+
+    # clean up the messy quotes that npf adds
+    data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
+
+    # filter dataframes based on CURRENT_TEST
+    df_baseline = data_df[data_df["CURRENT_TEST"] == "QUIC"]
+    df_fcquic = data_df[data_df["CURRENT_TEST"] == "FCQUIC"]
+    df_fcquic_fec = data_df[data_df["CURRENT_TEST"] == "FCQUIC_FEC"]
+    df_tcp = data_df[data_df["CURRENT_TEST"] == "TCP"]
+    df_tcp_no_tls = data_df[data_df["CURRENT_TEST"] == "TCP_NO_TLS"]
+    df_tokio_quiche = data_df[data_df["CURRENT_TEST"] == "TOKIO_QUICHE"]
+
+    for mean_or_median in ["mean", "median"]:
+        if mean_or_median == "mean":
+            fcquic_grouped = get_mean_std_grouped_for_df(df_fcquic)
+            fcquic_fec_grouped = get_mean_std_grouped_for_df(df_fcquic_fec)
+            baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
+            tcp_grouped = get_mean_std_grouped_for_df(df_tcp)
+            tcp_no_tls_grouped = get_mean_std_grouped_for_df(df_tcp_no_tls)
+            tokio_quiche_grouped = get_mean_std_grouped_for_df(df_tokio_quiche)
+        else:
+            fcquic_grouped = get_median_std_grouped_for_df(df_fcquic)
+            fcquic_fec_grouped = get_median_std_grouped_for_df(df_fcquic_fec)
+            baseline_grouped = get_median_std_grouped_for_df(df_baseline)
+            tcp_grouped = get_median_std_grouped_for_df(df_tcp)
+            tcp_no_tls_grouped = get_median_std_grouped_for_df(df_tcp_no_tls)
+            tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
+
+        sns.set_style("whitegrid")
+        plt.figure(figsize=(8, 6))
+        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+
+        if len(fcquic_grouped) > 0:
+            x = fcquic_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                fcquic_grouped[mean_or_median],
+                label="FC-QUIC",
+                color=FCQUIC_COLOR,
+                linestyle=FCQUIC_LINESTYLE,
+                marker=FCQUIC_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                fcquic_grouped["ci_lower"],
+                fcquic_grouped["ci_upper"],
+                color=FCQUIC_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(fcquic_fec_grouped) > 0:
+            x = fcquic_fec_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                fcquic_fec_grouped[mean_or_median],
+                label="FC-QUIC with FEC",
+                color=FCQUIC_FEC_COLOR,
+                linestyle=FCQUIC_FEC_LINESTYLE,
+                marker=FCQUIC_FEC_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                fcquic_fec_grouped["ci_lower"],
+                fcquic_fec_grouped["ci_upper"],
+                color=FCQUIC_FEC_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(baseline_grouped) > 0:
+            x = baseline_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                baseline_grouped[mean_or_median],
+                label="Baseline QUIC",
+                color=BASELINE_QUIC_COLOR,
+                linestyle=BASELINE_QUIC_LINESTYLE,
+                marker=BASELINE_QUIC_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                baseline_grouped["ci_lower"],
+                baseline_grouped["ci_upper"],
+                color=BASELINE_QUIC_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(tcp_grouped) > 0:
+            x = tcp_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                tcp_grouped[mean_or_median],
+                label="Baseline TCP (+TLS)",
+                color=BASELINE_TCP_COLOR,
+                linestyle=BASELINE_TCP_LINESTYLE,
+                marker=BASELINE_TCP_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                tcp_grouped["ci_lower"],
+                tcp_grouped["ci_upper"],
+                color=BASELINE_TCP_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(tcp_no_tls_grouped) > 0:
+            x = tcp_no_tls_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                tcp_no_tls_grouped[mean_or_median],
+                label="Baseline TCP (NO TLS)",
+                color=BASELINE_TCP_NO_TLS_COLOR,
+                linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
+                marker=BASELINE_TCP_NO_TLS_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                tcp_no_tls_grouped["ci_lower"],
+                tcp_no_tls_grouped["ci_upper"],
+                color=BASELINE_TCP_NO_TLS_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(tokio_quiche_grouped) > 0:
+            x = tokio_quiche_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                tokio_quiche_grouped[mean_or_median],
+                label="Baseline Tokio-quiche",
+                color=TOKIO_QUICHE_COLOR,
+                linestyle=TOKIO_QUICHE_LINESTYLE,
+                marker=TOKIO_QUICHE_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                tokio_quiche_grouped["ci_lower"],
+                tokio_quiche_grouped["ci_upper"],
+                color=TOKIO_QUICHE_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+        if bw_mbps is not None:
+            data_sizes = sorted(data_df["ADDITIONAL_DATA_SIZE"].unique())
+            
+            # theoretical minimum = transmission delay across all links
+            # packet_size = ADDITIONAL_DATA_SIZE, 4 links in tiny topo
+            # transmission delay per link = (size_bytes * 8) / (bw_mbps * 1e6) in seconds
+            # total = 4 * transmission delay per link, to ms
+            num_links = 4  # HACK: must change for different topologies..., not ideal but oh well
+            theoretical_ms = [
+                num_links * (size * 8) / (bw_mbps * 1e6) * 1000 for size in data_sizes
+            ]
+            plt.plot(
+                data_sizes,
+                theoretical_ms,
+                label=f"Min latency ({bw_mbps} Mbps, {num_links} links)",
+                color="black",
+                linestyle=":",
+                lw=LINEWIDTH,
+                marker="x",
+                markersize=MARKERSIZE,
+            )
+
+        plt.xlabel("Additional data size (bytes)", fontsize=12)
+        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12)
+        plt.title(
+            f"{mean_or_median.capitalize()} latency vs additional data size ({poisson_str}): {topo_name.replace('%', 'per')}",
+            fontsize=14,
+        )
+        plt.ylim(bottom=0)
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(
+            f"{out_path}/{mean_or_median}_latency_{topo_name}_{poisson_str}.svg",
+            bbox_inches="tight",
+        )
+        plt.close()
 
 
 def process_and_plot(
@@ -125,7 +370,7 @@ def process_and_plot(
                 for run_idx, count in run_counts.items():
                     print(f"  Run {run_idx}: {count} samples")
 
-    if len_fcquic < 0.5 * len_baseline or len_fcquic_fec < 0.5 * len_baseline:
+    if len_fcquic < 0.5 * len_baseline:
         print(
             "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
         )
