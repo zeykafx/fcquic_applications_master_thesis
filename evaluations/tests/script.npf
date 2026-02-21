@@ -12,8 +12,8 @@ result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE=true
-CONNECTION_SLEEP_LENGTH=0
-BIN_LOG_LEVEL="warn"
+CONNECTION_SLEEP_LENGTH=1
+BIN_LOG_LEVEL="info"
 
 %variables
 // # ------------- RECEIVERS TEST -------------
@@ -30,7 +30,7 @@ NUM_CLIENTS={2,3,7,11,15,19,23}
 INTERVAL=100
 MIN_INTERVAL=1
 LAMBDA=0.100
-TEST_LENGTH=10
+TEST_LENGTH=11
 FALLBACK_DELAY=200
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
@@ -43,8 +43,8 @@ latency:LAMBDA=0.1
 // # latency:LAMBDA=0.100
 latency:MIN_INTERVAL=1
 // # latency:MIN_INTERVAL=10
-latency:TEST_LENGTH=10
-latency:FALLBACK_DELAY=200
+latency:TEST_LENGTH=11
+latency:FALLBACK_DELAY=400
 // # latency:ADDITIONAL_DATA_SIZE=1100
 latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
@@ -56,7 +56,7 @@ data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
 data:LAMBDA=0.100
 data:MIN_INTERVAL=1
-data:TEST_LENGTH=10
+data:TEST_LENGTH=11
 data:FALLBACK_DELAY=200
 data:ADDITIONAL_DATA_SIZE={0,500,1100,2200,3000}
 // # ----------------------- OTHER VARS -----------------------
@@ -274,6 +274,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
         # if there is only one client, make that client compute the latency
        	CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
     fi
+
     if [ "$CLIENT_ID" = "1" ]; then
   		echo "client${CLIENT_ID} is the sender"
        	CLIENT_ARGS="$CLIENT_ARGS --sender"

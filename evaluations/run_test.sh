@@ -174,7 +174,10 @@ cd $WORKDIR/evaluations/topologies
 
 echo "Setting up the topology"
 
-sudo python3 ./create-topo.py ./configs/${TEST_DIR_NAME}/${TOPO_CONF_NAME}.yaml setup
+OUTPUT=$(sudo python3 ./create-topo.py ./configs/${TEST_DIR_NAME}/${TOPO_CONF_NAME}.yaml setup)
+# read the topology file to figure out the number of clients in the topo
+NUM_CLIENTS=$(echo "$OUTPUT" | grep "number_of_clients=" | sed 's/number_of_clients=//')
+
 
 echo "Set up topologies, now waiting for convergence"
 
@@ -205,6 +208,18 @@ sleep 10
 
 cd $WORKDIR/evaluations
 
+# Override the number of clients only for the lantency test, this is because the other tests use a varying number of clients
+# whereas the latency test always uses the all of clients defined in the topology file
+# so for this test only we grep the numher of clients in the topo and override the value in the npf script
+# That way i don't have to hardcode the number of clients (because i forget to change it...)
+NUM_CLIENTS_OVERRIDE_ARG=""
+if [ "$TEST_DIR_NAME" = "latency" ]; then
+    NUM_CLIENTS_OVERRIDE_ARG="NUM_CLIENTS=$NUM_CLIENTS"
+    
+    echo "Overriding the number of clients to be $NUM_CLIENTS, as given by the topology script"
+fi
+
+
 sudo -E ./venv/bin/npf-run --test ./tests/script.npf \
     --single-output ./tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv \
     --no-graph --force-retest ${TAGS_TO_USE} \
@@ -218,7 +233,8 @@ sudo -E ./venv/bin/npf-run --test ./tests/script.npf \
     CARGO_PATH=$CARGO_PATH \
     TEST_DIR_NAME=$TEST_DIR_NAME \
     TOPO_CONF_NAME=$TOPO_CONF_NAME \
-    POISSON="$USE_POISSON"
+    POISSON="$USE_POISSON" \
+    $NUM_CLIENTS_OVERRIDE_ARG
 
 # give permissions to all users to read and write the output file.
 # otherwise if this wasn't done, we'd need to use sudo to move remove or rename the output file

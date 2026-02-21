@@ -23,13 +23,14 @@ default_bandwidth = bandwidth_source
 default_multicast_enabled_router = True
 default_multicast_enabled_link = True
 default_delay = "1ms"
-default_buffer = 10000 
+default_buffer = 10000
 default_loss = "0%"
 default_loss_burst_percentage = "10%"
 default_rp_id = 1
 default_asm_prefix = "224.0.0.0/4"
 default_router_name_prefix = "r"
 router_overrides = {}
+number_of_clients = 0
 
 
 def set_link_properties(
@@ -191,6 +192,8 @@ def parse_routers(routers, topo: Topology, ips, tc_info):
 
 
 def parse_clients(clients, topo: Topology):
+    global number_of_clients
+
     clients_list = []
     if type(clients) is list:
         for client in clients:
@@ -208,6 +211,8 @@ def parse_clients(clients, topo: Topology):
                     print(f"Adding client {client} (id: {id})")
 
                 topo.add_node(client)
+
+    number_of_clients = len(clients_list)
     return clients_list
 
 
@@ -527,6 +532,8 @@ def main():
                 print(f"{node}\t\t{ip}\tn/a\tn/a\tn/a\tn/a\t{multicast_enabled}")
             else:
                 print(f"{node}\t\t{ip}\t{bw}\t{loss}\t{delay}\t{buffer}\t{multicast}")
+
+        print(f"number_of_clients={number_of_clients}")
 
     else:
         print(f"Tearing down topology: {conf_file}")
