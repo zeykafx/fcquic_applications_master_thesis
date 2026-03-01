@@ -20,3 +20,5 @@ fcquic_chat/logs/*
 fcquic_chat/tcp_logs/*
 fcquic_chat/baseline_logs/*
 fcquic_chat/tquic_logs/*
+
+fcquic_relay/logs/*
