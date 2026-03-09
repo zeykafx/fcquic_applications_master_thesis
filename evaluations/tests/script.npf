@@ -81,8 +81,9 @@ CARGO_PATH=""
 # Setting buffer values
 sudo sysctl -w net.core.rmem_max=26214400
 sudo sysctl -w net.core.rmem_max=26214400
-# Disable slow start after idle
-sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
+
+# # Disable slow start after idle
+# sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
 
 # ------------------------ Building App ------------------------
 
