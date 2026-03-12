@@ -1,0 +1,97 @@
+// # Note: This script was inspired by the evaluation script from Anthony Doeraene, as well as the following scripts from the FCQUIC's repo
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/scaling/scaling.npf
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
+
+%info
+FCQUIC vs QUIC vs TCP (with TLS)
+
+%config
+n_runs=3
+timeout=3600
+result_append={LATENCY}
+
+%late_variables
+RELEASE_MODE=true
+CONNECTION_SLEEP_LENGTH=1
+BIN_LOG_LEVEL="info"
+
+%variables
+latency:INTERVAL=100
+latency:LAMBDA=0.1
+latency:MIN_INTERVAL=1
+latency:TEST_LENGTH=20
+latency:FALLBACK_DELAY=400
+latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+POISSON="true"
+TCP_NODELAY="true"
+USE_SYSTEM_TIME="false"
+PER_CLIENT_LAT_RESULTS=false
+
+%init
+
+# ------ Pre setup ------
+# # Setting buffer values
+# sudo sysctl -w net.core.rmem_max=26214400
+# sudo sysctl -w net.core.rmem_max=26214400
+
+
+// ------------------------ SERVER ------------------------
+%script@server
+
+echo "Starting server"
+
+env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+--src  172.16.66.86:4433 --mc-src-addr  172.16.66.86:4443 --test-mode --flexicast \
+--fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy > server.log  2>&1 &
+
+echo "Server running!"
+
+echo "EVENT server-up"
+
+# SLEEP_LENGTH_SERVER=$(echo "10+${TEST_LENGTH}" | bc)
+SLEEP_LENGTH_SERVER=15
+echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
+sleep ${SLEEP_LENGTH_SERVER}
+
+// ------------------------ CLIENTS ------------------------
+%script@client waitfor=server-up delay=2
+
+echo "Starting client"
+
+CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+
+if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
+    # if there is only one client, make that client compute the latency
+    CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
+fi
+
+if [ "$CLIENT_ID" = "1" ]; then
+    echo "client${CLIENT_ID} is the sender"
+    CLIENT_ARGS="$CLIENT_ARGS --sender"
+fi
+
+if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
+fi
+
+if [ "$POISSON" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --poisson --lambda ${LAMBDA}"
+fi
+if [ "$USE_SYSTEM_TIME" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
+fi
+
+env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://172.16.66.86:4433 \
+    -l 172.16.66.83 --flexicast ${CLIENT_ARGS} < /dev/null 2> client_${NPF_NODE_ID}.log&
+
+
+# store the pid of this client into the pids set
+pids[${CLIENT_ID}]=$!
+
+
+# wait for all clients to finish
+for pid in ${pids[*]}; do
+    wait $pid
+done
+
+echo "EVENT clients-done"
