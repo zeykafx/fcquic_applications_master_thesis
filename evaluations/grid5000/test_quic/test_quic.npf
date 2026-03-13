@@ -15,48 +15,84 @@ RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="info"
 
+
 %variables
-latency:INTERVAL=100
-latency:LAMBDA=0.1
-latency:MIN_INTERVAL=1
-latency:TEST_LENGTH=20
-latency:FALLBACK_DELAY=400
-latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+INTERVAL=100
+LAMBDA=0.1
+NUM_CLIENTS=1
+MIN_INTERVAL=1
+TEST_LENGTH=10
+FALLBACK_DELAY=400
+ADDITIONAL_DATA_SIZE={0,500,1100}
 POISSON="true"
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
 PER_CLIENT_LAT_RESULTS=false
+WORKDIR="/home/cdetry"
+SERVER_IP=""
+CLIENT_IPS=""
 
 %init
 
 # ------ Pre setup ------
-# # Setting buffer values
-# sudo sysctl -w net.core.rmem_max=26214400
-# sudo sysctl -w net.core.rmem_max=26214400
+
 
 
 // ------------------------ SERVER ------------------------
 %script@server
 
-echo "Starting server"
+# first use sudo-g5k to be able to use sudo for the rest of the experiment
+sudo-g5k
+# Setting buffer values
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
 
-env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
---src  172.16.66.86:4433 --mc-src-addr  172.16.66.86:4443 --test-mode --flexicast \
---fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy > server.log  2>&1 &
+echo "Starting server with IP $SERVER_IP"
+
+LOG_FILENAME="server.log"
+touch $LOG_FILENAME
+
+SERVER_IMAGE="corentindetry/fcquic_server"
+SERVER_EXEC="docker run --network=host \
+        --privileged \
+        -v ${WORKDIR}:${WORKDIR} \
+        -e RUST_LOG_STYLE=always \
+        -e RUST_BACKTRACE=full \
+        -e RUST_LOG=${BIN_LOG_LEVEL} \
+        ${SERVER_IMAGE}"
+
+
+
+TEST_LENGTH_SERVER=$(echo "5+${TEST_LENGTH}" | bc)
+
+${SERVER_EXEC} \
+--src ${SERVER_IP}:4433 --mc-src-addr ${SERVER_IP}:4443 --test-mode --flexicast \
+--fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy --length ${TEST_LENGTH_SERVER} > ${LOG_FILENAME} 2>&1 &
 
 echo "Server running!"
-
-echo "EVENT server-up"
-
-# SLEEP_LENGTH_SERVER=$(echo "10+${TEST_LENGTH}" | bc)
-SLEEP_LENGTH_SERVER=15
-echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
-sleep ${SLEEP_LENGTH_SERVER}
+sleep $TEST_LENGTH_SERVER
 
 // ------------------------ CLIENTS ------------------------
-%script@client waitfor=server-up delay=2
+%script@client delay=1
 
-echo "Starting client"
+# first use sudo-g5k to be able to use sudo for the rest of the experiment
+sudo-g5k
+# Setting buffer values
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+
+echo "Starting clients"
+
+pids=()
+
+CLIENT_ID=$NPF_NODE_ID
+
+LOG_FILENAME="client_${CLIENT_ID}.log"
+touch $LOG_FILENAME
+
+CLIENT_IP=$(/sbin/ifconfig br0 | grep 'inet ' | awk '{ print $2}')
+echo "Client ID: ${CLIENT_ID} has IP: ${CLIENT_IP}"
 
 CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
 
@@ -81,13 +117,20 @@ if [ "$USE_SYSTEM_TIME" = "true" ]; then
     CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
 fi
 
-env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://172.16.66.86:4433 \
-    -l 172.16.66.83 --flexicast ${CLIENT_ARGS} < /dev/null 2> client_${NPF_NODE_ID}.log&
+CLIENT_IMAGE="corentindetry/fcquic_client"
+client_exec="docker run --network=host \
+        --privileged \
+        -v ${WORKDIR}:${WORKDIR} \
+        -e RUST_LOG_STYLE=always \
+        -e RUST_BACKTRACE=full \
+        -e RUST_LOG=${BIN_LOG_LEVEL} \
+        ${CLIENT_IMAGE}"
 
+$client_exec https://${SERVER_IP}:4433 \
+-l $CLIENT_IP --flexicast ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 
 # store the pid of this client into the pids set
 pids[${CLIENT_ID}]=$!
-
 
 # wait for all clients to finish
 for pid in ${pids[*]}; do
