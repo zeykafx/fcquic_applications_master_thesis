@@ -3,7 +3,7 @@ set -e
 
 USERNAME="corentindetry"
 
-IMAGES=("base" "fcquic_client" "fcquic_server" "tquic_client" "tquic_server" "tcp_client" "tcp_server")
+IMAGES=("base" "fcquic_client" "fcquic_server" "fcquic_relay" "app_relay" "tquic_client" "tquic_server" "tcp_client" "tcp_server")
 
 for IMAGE in "${IMAGES[@]}"; do
   echo "tagging and pushing $IMAGE"

@@ -10,11 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# copy both dirs but without the target dir
+# copy all code dirs but without the target dir
 COPY --exclude=*target* ./fcquic_chat /fcquic_chat
+COPY --exclude=*target* ./fcquic_relay /fcquic_relay
 COPY --exclude=*target* ./multicast-quic /multicast-quic
+
 # compile everything
 RUN cd fcquic_chat && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+RUN cd fcquic_relay && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
 
 # runtime section, only keep the binaries and certs
 FROM debian:bookworm-slim
@@ -31,3 +34,7 @@ COPY --from=builder /fcquic_chat/target/release/tquic-server  /
 COPY --from=builder /fcquic_chat/target/release/tcp-server  /
 COPY --from=builder /fcquic_chat/cert.crt /
 COPY --from=builder /fcquic_chat/cert.key /
+
+# relay binaries
+COPY --from=builder /fcquic_relay/target/release/fcquic_relay  /
+COPY --from=builder /fcquic_relay/target/release/app_relay  /

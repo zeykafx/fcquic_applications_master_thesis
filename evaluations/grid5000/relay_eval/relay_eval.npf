@@ -1,0 +1,177 @@
+// # Note: This script was inspired by the evaluation script from Anthony Doeraene, as well as the following scripts from the FCQUIC's repo
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/scaling/scaling.npf
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
+
+%info
+FCQUIC Relay evaluation
+
+%config
+n_runs=3
+timeout=3600
+result_append={LATENCY}
+
+%late_variables
+CONNECTION_SLEEP_LENGTH=1
+BIN_LOG_LEVEL="info"
+
+%variables
+POISSON="true"
+INTERVAL=100
+LAMBDA=0.1
+NUM_CLIENTS=10
+MIN_INTERVAL=1
+TEST_LENGTH=10
+FALLBACK_DELAY=400
+// # ADDITIONAL_DATA_SIZE={0,500,1100}
+ADDITIONAL_DATA_SIZE={1100}
+RELAY_IMPLEM={"fcquic_relay","app_relay"}
+USE_SYSTEM_TIME="false"
+PER_CLIENT_LAT_RESULTS=false
+WORKDIR="/home/cdetry"
+SERVER_IP=""
+RELAY_IP=""
+
+%import@client dev_rate NIC=0 SIDE=rx
+
+%import@server dev_rate NIC=0 SIDE=tx
+
+%import graph-beautiful
+
+%init@server
+# first use sudo-g5k to be able to use sudo for the rest of the experiment
+sudo-g5k
+# Setting buffer values
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+%init@relay
+
+sudo-g5k
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+
+
+%init@client
+
+sudo-g5k
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+
+// ------------------------ SERVER ------------------------
+%script@server
+
+echo "Starting server with IP $SERVER_IP"
+
+LOG_FILENAME="server.log"
+touch $LOG_FILENAME
+
+SERVER_IMAGE="corentindetry/fcquic_server"
+SERVER_EXEC="docker run --network=host \
+        --privileged \
+        -v ${WORKDIR}:${WORKDIR} \
+        -e RUST_LOG_STYLE=always \
+        -e RUST_BACKTRACE=full \
+        -e RUST_LOG=${BIN_LOG_LEVEL} \
+        ${SERVER_IMAGE}"
+
+TEST_LENGTH_SERVER=$(echo "5+${TEST_LENGTH}" | bc)
+
+${SERVER_EXEC} \
+--src ${SERVER_IP}:4433 --mc-src-addr ${SERVER_IP}:4443 --test-mode --flexicast \
+--fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --length ${TEST_LENGTH_SERVER} > ${LOG_FILENAME} 2>&1 &
+
+echo "Server running!"
+sleep $TEST_LENGTH_SERVER
+
+// ------------------------ RELAY ------------------------
+%script@relay delay=1
+
+echo "Starting ${RELAY_IMPLEM} with IP $RELAY_IP, connecting to $SERVER_IP"
+
+LOG_FILENAME="${RELAY_IMPLEM}.log"
+touch $LOG_FILENAME
+
+RELAY_IMAGE="corentindetry/${RELAY_IMPLEM}"
+RELAY_EXEC="docker run --network=host \
+        --privileged \
+        -v ${WORKDIR}:${WORKDIR} \
+        -e RUST_LOG_STYLE=always \
+        -e RUST_BACKTRACE=full \
+        -e RUST_LOG=${BIN_LOG_LEVEL} \
+        ${RELAY_IMAGE}"
+
+TEST_LENGTH_RELAY=$(echo "5+${TEST_LENGTH}" | bc)
+
+${RELAY_EXEC} \
+    https://${SERVER_IP}:4433 --src ${RELAY_IP}:4433 --mc-src-addr ${RELAY_IP}:4443 --test-mode --flexicast \
+    --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME} 2>&1 &
+
+echo "${RELAY_IMPLEM} running!"
+sleep $TEST_LENGTH_RELAY
+
+// ------------------------ CLIENTS ------------------------
+%script@client delay=1
+
+echo "Starting clients"
+
+pids=()
+
+for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
+
+    LOG_FILENAME="client_${CLIENT_ID}.log"
+    touch $LOG_FILENAME
+
+    CLIENT_NS_NAME="client-${CLIENT_ID}"
+    CLIENT_NS_IFACE="veth-c${CLIENT_ID}"
+
+    CLIENT_IP=$(sudo ip netns exec ${CLIENT_NS_NAME} ifconfig ${CLIENT_NS_IFACE} | grep 'inet ' | awk '{ print $2 }')
+    MCAST_CLIENT_IP=$(sudo ip netns exec ${CLIENT_NS_NAME} ip route | grep 'default ' | awk '{ print $3 }')
+    echo "Client ID: ${CLIENT_ID} has IP: ${CLIENT_IP}, multicast ip: ${MCAST_CLIENT_IP}"
+
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+
+    if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
+        # if there is only one client, make that client compute the latency
+        CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
+    fi
+
+    if [ "$CLIENT_ID" = "1" ]; then
+        echo "client${CLIENT_ID} is the sender"
+        CLIENT_ARGS="$CLIENT_ARGS --sender"
+    fi
+
+    if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
+        CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
+    fi
+
+    if [ "$POISSON" = "true" ]; then
+        CLIENT_ARGS="$CLIENT_ARGS --poisson --lambda ${LAMBDA}"
+    fi
+    if [ "$USE_SYSTEM_TIME" = "true" ]; then
+        CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
+    fi
+
+    CLIENT_IMAGE="corentindetry/fcquic_client"
+    client_exec="docker run --network=host \
+            --privileged \
+            -v ${WORKDIR}:${WORKDIR} \
+            -e RUST_LOG_STYLE=always \
+            -e RUST_BACKTRACE=full \
+            -e RUST_LOG=${BIN_LOG_LEVEL} \
+            ${CLIENT_IMAGE}"
+
+    # pass in the network namespace to use
+    NS=${CLIENT_NS_NAME} $client_exec https://${SERVER_IP}:4433 \
+    -l ${MCAST_CLIENT_IP} --flexicast ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
+
+    # store the pid of this client into the pids set
+    pids[${CLIENT_ID}]=$!
+done
+# wait for all clients to finish
+for pid in ${pids[*]}; do
+    wait $pid
+done
+
+echo "EVENT clients-done"

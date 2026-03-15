@@ -24,6 +24,12 @@ docker build -t fcquic_client -f ./docker_images/fcquic_client/Dockerfile ./dock
 echo "Building fcquic_server image"
 docker build -t fcquic_server -f ./docker_images/fcquic_server/Dockerfile ./docker_images/fcquic_server
 
+echo "Building fcquic_relay image"
+docker build -t fcquic_relay -f ./docker_images/fcquic_relay/Dockerfile ./docker_images/fcquic_relay
+
+echo "Building app_relay image"
+docker build -t app_relay -f ./docker_images/app_relay/Dockerfile ./docker_images/app_relay
+
 echo "Building tquic_client image"
 docker build -t tquic_client -f ./docker_images/tquic_client/Dockerfile ./docker_images/tquic_client
 
