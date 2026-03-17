@@ -12,7 +12,7 @@ result_append={LATENCY}
 
 %late_variables
 CONNECTION_SLEEP_LENGTH=1
-BIN_LOG_LEVEL="info"
+BIN_LOG_LEVEL="debug"
 
 %variables
 POISSON="true"
@@ -51,7 +51,6 @@ sudo sysctl -w net.core.rmem_max=26214400
 sudo sysctl -w net.core.rmem_max=26214400
 
 
-
 %init@client
 
 sudo-g5k
@@ -68,7 +67,7 @@ LOG_FILENAME="server.log"
 touch $LOG_FILENAME
 
 SERVER_IMAGE="corentindetry/fcquic_server"
-SERVER_EXEC="docker run --network=host \
+SERVER_EXEC="docker run -t --network=host \
         --privileged \
         -v ${WORKDIR}:${WORKDIR} \
         -e RUST_LOG_STYLE=always \

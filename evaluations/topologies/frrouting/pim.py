@@ -31,12 +31,12 @@ class PimGlobal:
 
         if self.ssm_range is not None or self.use_asm:
             s += "router pim\n"
-            if self.use_asm:
-                s += f"  bsr candidate-rp priority {self.rp_priority}\n"
-                s += f"  bsr candidate-bsr priority {self.bsr_priority}\n"
-                s += f"  bsr candidate-rp group {self.asm_prefix}\n"
-            else:
-                s += "  ssm prefix-list multicast\n"
+            # if self.use_asm:
+            #     s += f"  bsr candidate-rp priority {self.rp_priority}\n"
+            #     s += f"  bsr candidate-bsr priority {self.bsr_priority}\n"
+            #     s += f"  bsr candidate-rp group {self.asm_prefix}\n"
+            # else:
+            s += "  ssm prefix-list multicast\n"
             s += "exit"
 
         return s
@@ -45,15 +45,22 @@ class PimGlobal:
 class PimInterface:
     def __init__(self):
         self.enabled = False
+        self.use_pim_sm = False
 
     def enable(self):
         self.enabled = True
+
+    def set_pim_sm(self, val):
+        self.use_pim_sm = val
 
     def __str__(self):
         s = ""
         if self.enabled:
             s += "  ip router pim\n"
-            s += "  ip pim sm\n"
+            if self.use_pim_sm:
+                s += "  ip pim sm\n"
+            else:
+                s += "  ip pim\n"
             s += "  ip igmp\n"
             s += "  ip igmp immediate-leave\n"
         return s

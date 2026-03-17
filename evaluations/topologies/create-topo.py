@@ -28,6 +28,7 @@ default_loss = "0%"
 default_loss_burst_percentage = "10%"
 default_rp_id = 1
 default_asm_prefix = "224.0.0.0/4"
+default_use_asm = False
 default_router_name_prefix = "r"
 router_overrides = {}
 number_of_clients = 0
@@ -108,6 +109,8 @@ def parse_defaults(defaults: dict):
             default_rp_id = defaults["routers"]["rp_id"]
         if "asm_prefix" in defaults["routers"]:
             default_asm_prefix = defaults["routers"]["asm_prefix"]
+        if "use_asm" in defaults["routers"]:
+            default_use_asm = defaults["routers"]["use_asm"]
         if "name_prefix" in defaults["routers"]:
             default_router_name_prefix = defaults["routers"]["name_prefix"]
 
@@ -470,11 +473,15 @@ def main():
                 bsr_priority = id + 100  # highest wins
                 rp_priority = 0  # lowest wins
 
-            conf.glb.pim.set_use_asm(True)
-            conf.glb.pim.set_bsr_priority(bsr_priority)
-            conf.glb.pim.set_rp_priority(rp_priority)
+                if default_use_asm:
+                    conf.glb.pim.set_use_asm(True)
+                    conf.glb.pim.set_bsr_priority(bsr_priority)
+                    conf.glb.pim.set_rp_priority(rp_priority)
 
-            conf.glb.pim.set_asm_prefix(IPv4Network(default_asm_prefix))
+                    conf.glb.pim.set_asm_prefix(IPv4Network(default_asm_prefix))
+                else:
+                    conf.glb.pim.set_use_asm(False)
+                    conf.glb.pim.set_ssm_range(IPv4Network("224.0.0.0/4"))
 
         # enable isis and pim on loopback
         lo_conf = conf.get_interface("lo")
@@ -502,6 +509,9 @@ def main():
 
             if itf_mcast_enabled:
                 itf_conf.pim.enable()
+                if default_use_asm:
+                    # enable PIM SM to make asm work
+                    itf_conf.pim.set_pim_sm(True)
 
     if args.mode == "setup":
         if draw_diagram:
