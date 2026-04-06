@@ -4,6 +4,7 @@ topology:
             multicast: true
             rp_id: 1
             asm_prefix: "224.0.0.0/4"
+            use_asm: false
 
         links:
             bandwidth: "100Mbit"

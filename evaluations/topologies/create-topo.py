@@ -43,6 +43,7 @@ def set_link_properties(
     buffer: int,
     loss: str,
     multicast: bool,
+    is_gre_tunnel: bool,
     loss_burst_percentage: str = default_loss_burst_percentage,
     codel: bool = False,
 ):
@@ -51,6 +52,7 @@ def set_link_properties(
     topo.set_limit(node, itf, buffer)
     topo.set_loss_percentage(node, itf, loss)
     topo.set_multicast_enabled(node, itf, multicast)
+    # topo.set_is_gre_tunnel(node1=node, node2=itf, is_gre_tunnel=is_gre_tunnel)
     topo.set_burst_percentage(node, itf, loss_burst_percentage)
     topo.enable_codel(node, itf, codel)
 
@@ -101,6 +103,7 @@ def parse_defaults(defaults: dict):
         default_multicast_enabled_link, \
         default_rp_id, \
         default_asm_prefix, \
+        default_use_asm, \
         default_router_name_prefix
     if "routers" in defaults:
         if "multicast" in defaults["routers"]:
@@ -125,7 +128,6 @@ def parse_defaults(defaults: dict):
             default_delay = defaults["links"]["delay"]
         if "buffer" in defaults["links"]:
             default_buffer = defaults["links"]["buffer"]
-
         if "multicast" in defaults["links"]:
             default_multicast_enabled_link = defaults["links"]["multicast"]
 
@@ -245,11 +247,15 @@ def configure_link(
         network = IPv4Network(f"10.10.{link_ctr}.0/24")
         link_ctr += 1
 
+    is_gre_tunnel = "gre" in link and link["gre"]
+    gre_network = IPv4Network(f"10.50.{link_ctr}.0/24")
     topo.add_link(
         node1,
         node2,
         network,
         router_link=router_link,
+        is_gre_tunnel=is_gre_tunnel,
+        gre_network=gre_network,
     )
 
     if not router_link:
@@ -277,6 +283,7 @@ def configure_link(
         buffer,
         loss_percentage,
         multicast,
+        is_gre_tunnel,
         burst_percentage,
     )
 
@@ -289,8 +296,9 @@ def configure_link(
 
     if verbose:
         print(
-            f"Adding link: {node1} <-> {node2}, Network: {network}, bw: {bw}, loss: {loss_percentage}, delay: {delay}, buf: {buffer}, pim: {multicast}"
+            f"Adding link: {node1} <-> {node2}, Network: {network}, bw: {bw}, loss: {loss_percentage}, delay: {delay}, buf: {buffer}, pim: {multicast}, gre: {is_gre_tunnel}"
         )
+
     return link_ctr, tc_info, ips
 
 
@@ -463,6 +471,9 @@ def main():
             else default_multicast_enabled
         )
 
+        if verbose:
+            print(f"Multicast enabled for {r_id} ({router}): {multicast_enabled}")
+
         if multicast_enabled:
             # note: highest bsr priority wins
             # but lowest rp priority wins
@@ -473,15 +484,15 @@ def main():
                 bsr_priority = id + 100  # highest wins
                 rp_priority = 0  # lowest wins
 
-                if default_use_asm:
-                    conf.glb.pim.set_use_asm(True)
-                    conf.glb.pim.set_bsr_priority(bsr_priority)
-                    conf.glb.pim.set_rp_priority(rp_priority)
+            if default_use_asm:
+                conf.glb.pim.set_use_asm(True)
+                conf.glb.pim.set_bsr_priority(bsr_priority)
+                conf.glb.pim.set_rp_priority(rp_priority)
 
-                    conf.glb.pim.set_asm_prefix(IPv4Network(default_asm_prefix))
-                else:
-                    conf.glb.pim.set_use_asm(False)
-                    conf.glb.pim.set_ssm_range(IPv4Network("224.0.0.0/4"))
+                conf.glb.pim.set_asm_prefix(IPv4Network(default_asm_prefix))
+            else:
+                conf.glb.pim.set_use_asm(False)
+                conf.glb.pim.set_ssm_range(IPv4Network("224.0.0.0/4"))
 
         # enable isis and pim on loopback
         lo_conf = conf.get_interface("lo")
@@ -507,7 +518,13 @@ def main():
                 else default_multicast_enabled_link
             )
 
-            if itf_mcast_enabled:
+            itf_gre_tun = (
+                info["is_gre_tunnel"]
+                if "is_gre_tunnel" in info
+                else False 
+            )
+
+            if itf_mcast_enabled or itf_gre_tun:
                 itf_conf.pim.enable()
                 if default_use_asm:
                     # enable PIM SM to make asm work

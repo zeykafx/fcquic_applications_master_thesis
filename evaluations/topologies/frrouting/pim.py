@@ -31,12 +31,14 @@ class PimGlobal:
 
         if self.ssm_range is not None or self.use_asm:
             s += "router pim\n"
-            # if self.use_asm:
-            #     s += f"  bsr candidate-rp priority {self.rp_priority}\n"
-            #     s += f"  bsr candidate-bsr priority {self.bsr_priority}\n"
-            #     s += f"  bsr candidate-rp group {self.asm_prefix}\n"
-            # else:
-            s += "  ssm prefix-list multicast\n"
+            if self.use_asm:
+                # NOTE: the router with the lowest rp priority value will be the RP
+                s += f"  bsr candidate-rp priority {self.rp_priority}\n"
+                # NOTE: the router with the highest BSR priorty will be the bsr
+                s += f"  bsr candidate-bsr priority {self.bsr_priority}\n"
+                s += f"  bsr candidate-rp group {self.asm_prefix}\n"
+            else:
+                s += "  ssm prefix-list multicast\n"
             s += "exit"
 
         return s
@@ -56,7 +58,7 @@ class PimInterface:
     def __str__(self):
         s = ""
         if self.enabled:
-            s += "  ip router pim\n"
+            # s += "  ip router pim\n"
             if self.use_pim_sm:
                 s += "  ip pim sm\n"
             else:

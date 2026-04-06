@@ -29,29 +29,75 @@ class Topology:
         node1: str,
         node2: str,
         network: IPv4Network,
+        gre_network: IPv4Network,
         backup: bool = False,
         router_link: bool = False,
+        is_gre_tunnel: bool = False,
     ):
         self.add_node(node1)
         self.add_node(node2)
-        itf1 = f"{node1}-{node2}"
-        itf2 = f"{node2}-{node1}"
+
+        old_itf1 = None
+        old_itf2 = None
+        if self.graph.has_edge(node1, node2):
+            old_itf1 = self.get_itf_info(node1, node2).get("itf")
+            self.graph.remove_edge(node1, node2)
+        if self.graph.has_edge(node2, node1):
+            old_itf2 = self.get_itf_info(node2, node1).get("itf")
+            self.graph.remove_edge(node2, node1)
+
+        if is_gre_tunnel:
+            itf1 = f"{node1}-{node2}-gre"
+            itf2 = f"{node2}-{node1}-gre"
+        else:
+            itf1 = f"{node1}-{node2}"
+            itf2 = f"{node2}-{node1}"
+
         self.graph.add_edge(node1, node2, itf=itf1, peer_itf=itf2)
         self.graph.add_edge(node2, node1, itf=itf2, peer_itf=itf1)
 
         conf1 = self.get_conf(node1)
         if conf1 is not None:
+            if old_itf1 is not None and old_itf1 != itf1:
+                conf1.interfaces.pop(old_itf1, None)
             conf1.add_interface(itf1)
         conf2 = self.get_conf(node2)
         if conf2 is not None:
+            if old_itf2 is not None and old_itf2 != itf2:
+                conf2.interfaces.pop(old_itf2, None)
             conf2.add_interface(itf2)
 
         self._set_link_property(node1, node2, "backup", backup)
         self._set_link_property(node1, node2, "inter_router_itf", router_link)
+        self._set_link_property(node1, node2, "is_gre_tunnel", is_gre_tunnel)
 
-        ip1, ip2 = list(network.hosts())[:2]
-        self.set_ip(node1, node2, ip1, network.prefixlen)
-        self.set_ip(node2, node1, ip2, network.prefixlen)
+        if is_gre_tunnel:
+            info12 = self.get_itf_info(node1, node2)
+            info21 = self.get_itf_info(node2, node1)
+
+            underlay_itf1 = f"{itf1}-u"
+            underlay_itf2 = f"{itf2}-u"
+            underlay_ip1, underlay_ip2 = list(network.hosts())[:2]
+
+            info12["underlay_itf"] = underlay_itf1
+            info12["underlay_peer_itf"] = underlay_itf2
+            info12["underlay_local_ip"] = underlay_ip1
+            info12["underlay_remote_ip"] = underlay_ip2
+            info12["underlay_prefix"] = network.prefixlen
+
+            info21["underlay_itf"] = underlay_itf2
+            info21["underlay_peer_itf"] = underlay_itf1
+            info21["underlay_local_ip"] = underlay_ip2
+            info21["underlay_remote_ip"] = underlay_ip1
+            info21["underlay_prefix"] = network.prefixlen
+
+            ip1, ip2 = list(gre_network.hosts())[:2]
+            self.set_ip(node1, node2, ip1, gre_network.prefixlen)
+            self.set_ip(node2, node1, ip2, gre_network.prefixlen)
+        else:
+            ip1, ip2 = list(network.hosts())[:2]
+            self.set_ip(node1, node2, ip1, network.prefixlen)
+            self.set_ip(node2, node1, ip2, network.prefixlen)
 
     def get_itf_info(self, node1, node2):
         return self.graph.get_edge_data(node1, node2)
@@ -97,6 +143,9 @@ class Topology:
     def set_multicast_enabled(self, node1, node2, multicast):
         self._set_link_property(node1, node2, "multicast", multicast)
 
+    # def set_is_gre_tunnel(self, node1, node2, is_gre_tunnel):
+    #     self._set_link_property(node1, node2, "is_gre_tunnel", is_gre_tunnel)
+
     def get_itfs(self, node: str):
         itfs = []
         for _, _, info in self.graph.edges(node, data=True):
@@ -110,6 +159,9 @@ class Topology:
             peer_info.append(self.graph.get_edge_data(peer, node))
 
         return peer_info
+
+    def get_data(self, node: str) -> FRRouting:
+        return self.graph.nodes(data=True)[node]
 
     def get_conf(self, node: str) -> FRRouting:
         return self.graph.nodes(data=True)[node]["conf"]
@@ -138,8 +190,10 @@ class Topology:
             multicast_disabled = self._has_multicast_disabled(node)
 
             if self._is_router(node):
-                # when disabling multicast for a router, the pim router section will not has "use_asm" set to true
-                multicast_disabled = not self.get_conf(node).glb.pim.use_asm
+                # when disabling multicast for a router, the pim router section will not have "use_asm" set to true
+                multicast_disabled = (
+                    not self.get_conf(node).get_interface("lo").pim.enabled
+                )
                 fillcolor = "lightblue"
                 if multicast_disabled:
                     fillcolor = "lightcoral"
@@ -169,6 +223,7 @@ class Topology:
                 drawn_edges.add(edge_key)
                 # check if multicast is disabled on this link
                 multicast_disabled = info.get("multicast") is False
+                is_gre_tunnel = info.get("is_gre_tunnel") is True
                 color = "red" if multicast_disabled else "black"
                 penwidth = "2.0" if multicast_disabled else "1.0"
 
@@ -178,6 +233,8 @@ class Topology:
                 loss_str = loss_rate if loss_rate != "0%" else ""
                 delay_str = delay if delay != "0ms" else ""
                 label_str = f"{loss_str}\n{delay_str}"
+                if is_gre_tunnel:
+                    label_str += " (GRE)"
                 dot.edge(
                     node1,
                     node2,
@@ -204,43 +261,202 @@ class Topology:
     def _create_link(self, node1, node2, data):
         itf1 = data["itf"]
         itf2 = data["peer_itf"]
-        subprocess.run(
-            ["ip", "link", "add", f"{itf1}", "type", "veth", "peer", "name", f"{itf2}"]
-        )
 
-        # assign to correct namespace
-        subprocess.run(["ip", "link", "set", f"{itf1}", "netns", f"{node1}"])
-        subprocess.run(["ip", "link", "set", f"{itf2}", "netns", f"{node2}"])
+        is_gre_tunnel = data.get("is_gre_tunnel", False)
+        if is_gre_tunnel:
+            underlay_itf1 = data["underlay_itf"]
+            underlay_itf2 = data["underlay_peer_itf"]
+            underlay_ip1 = data["underlay_local_ip"]
+            underlay_ip2 = data["underlay_remote_ip"]
+            underlay_prefix = data["underlay_prefix"]
 
-        # set interfaces up
-        subprocess.run(
-            [
-                "ip",
-                "netns",
-                "exec",
-                f"{node1}",
-                "ip",
-                "link",
-                "set",
-                "dev",
-                f"{itf1}",
-                "up",
-            ]
-        )
-        subprocess.run(
-            [
-                "ip",
-                "netns",
-                "exec",
-                f"{node2}",
-                "ip",
-                "link",
-                "set",
-                "dev",
-                f"{itf2}",
-                "up",
-            ]
-        )
+            # Create an internal veth pair used as the tunnel underlay transport.
+            subprocess.run(
+                [
+                    "ip",
+                    "link",
+                    "add",
+                    f"{underlay_itf1}",
+                    "type",
+                    "veth",
+                    "peer",
+                    "name",
+                    f"{underlay_itf2}",
+                ]
+            )
+
+            subprocess.run(["ip", "link", "set", f"{underlay_itf1}", "netns", f"{node1}"])
+            subprocess.run(["ip", "link", "set", f"{underlay_itf2}", "netns", f"{node2}"])
+
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node1}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{underlay_itf1}",
+                    "up",
+                ]
+            )
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node2}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{underlay_itf2}",
+                    "up",
+                ]
+            )
+
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node1}",
+                    "ip",
+                    "addr",
+                    "add",
+                    f"{underlay_ip1}/{underlay_prefix}",
+                    "dev",
+                    f"{underlay_itf1}",
+                ]
+            )
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node2}",
+                    "ip",
+                    "addr",
+                    "add",
+                    f"{underlay_ip2}/{underlay_prefix}",
+                    "dev",
+                    f"{underlay_itf2}",
+                ]
+            )
+
+            # setup GRE tunnel on node1
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node1}",
+                    "ip",
+                    "tunnel",
+                    "add",
+                    f"{itf1}",
+                    "mode",
+                    "gre",
+                    "local",
+                    f"{underlay_ip1}",
+                    "remote",
+                    f"{underlay_ip2}",
+                    "ttl",
+                    "64",
+                ]
+            )
+
+            # setup GRE tunnel on node2
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node2}",
+                    "ip",
+                    "tunnel",
+                    "add",
+                    f"{itf2}",
+                    "mode",
+                    "gre",
+                    "local",
+                    f"{underlay_ip2}",
+                    "remote",
+                    f"{underlay_ip1}",
+                    "ttl",
+                    "64",
+                ]
+            )
+
+            # set interfaces up
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node1}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{itf1}",
+                    "up",
+                ]
+            )
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node2}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{itf2}",
+                    "up",
+                ]
+            )
+        else:
+            subprocess.run(
+                ["ip", "link", "add", f"{itf1}", "type", "veth", "peer", "name", f"{itf2}"]
+            )
+
+            # assign to correct namespace
+            subprocess.run(["ip", "link", "set", f"{itf1}", "netns", f"{node1}"])
+            subprocess.run(["ip", "link", "set", f"{itf2}", "netns", f"{node2}"])
+
+            # set interfaces up
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node1}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{itf1}",
+                    "up",
+                ]
+            )
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    f"{node2}",
+                    "ip",
+                    "link",
+                    "set",
+                    "dev",
+                    f"{itf2}",
+                    "up",
+                ]
+            )
 
     def _add_ips(self, node):
         for _, _, info in self.graph.edges(node, data=True):
@@ -449,10 +665,15 @@ class Topology:
             for node1, node2, info in self.graph.edges(data=True):
                 if node1 > node2:
                     continue
-                link_futures.append(
-                    executor.submit(self._create_link, node1, node2, info)
-                )
+                link_futures.append(executor.submit(self._create_link, node1, node2, info))
             for future in as_completed(link_futures):
+                future.result()
+
+            # add IPs
+            ip_futures = []
+            for node, _ in self.graph.nodes(data=True):
+                ip_futures.append(executor.submit(self._add_ips, node))
+            for future in as_completed(ip_futures):
                 future.result()
 
             # set netem in parallel
@@ -463,7 +684,7 @@ class Topology:
             for future in as_completed(netem_futures):
                 future.result()
 
-            # dd ips and configure nodes in parallel
+            # configure nodes in parallel
             config_futures = []
             for node, info in self.graph.nodes(data=True):
                 config_futures.append(executor.submit(self._configure_node, node, info))
@@ -471,7 +692,6 @@ class Topology:
                 future.result()
 
     def _configure_node(self, node, _):
-        self._add_ips(node)
         if self._is_router(node):
             self._configure_loopback(node)
             self._dump_conf(node)

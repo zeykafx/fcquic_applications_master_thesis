@@ -5,6 +5,7 @@ topology:
             rp_id: 1
             asm_prefix: "224.0.0.0/4"
             name_prefix: "r"
+            use_asm: false
 
         links:
             bandwidth: "1000Mbit"
