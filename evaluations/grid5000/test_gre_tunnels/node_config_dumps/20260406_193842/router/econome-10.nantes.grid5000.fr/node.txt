@@ -1,0 +1,3 @@
+role=router
+alias=econome-10.nantes.grid5000.fr
+address=econome-10.nantes.grid5000.fr

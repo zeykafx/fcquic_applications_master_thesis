@@ -1,0 +1,31 @@
+---
+PC1:
+    username: 
+    password: 
+    platform: linux
+    hostname: 
+PC2:
+    username: 
+    password: 
+    platform: linux
+    hostname: 
+PC3:
+    username: 
+    password: 
+    platform: linux
+    hostname: 
+ecotype1:
+    username: 
+    password: 
+    platform: linux
+    hostname: 
+ecotype2:
+    username: 
+    password: 
+    platform: linux
+    hostname: 
+spirou:
+    username: 
+    password: 
+    platform: linux
+    hostname: 

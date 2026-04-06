@@ -1,0 +1,81 @@
+# Receiver on PC3: socat UDP4-RECVFROM:8888,ip-add-membership=239.1.1.1:10.10.13.2,fork -
+# Sender on PC2: socat - UDP4-DATAGRAM:239.1.1.1:8888,bind=10.10.12.2,ip-multicast-ttl=64
+name: gre-mcast
+
+topology:
+  defaults:
+    network-mode: none
+  groups:
+    routers:
+      kind: linux
+      image: quay.io/frrouting/frr:10.5.1
+    hosts:
+      kind: linux
+      image: alpine-mcast 
+      
+  nodes:
+    spirou:
+      group: routers
+      binds:
+        - spirou/daemons:/etc/frr/daemons
+        - spirou/frr.conf:/etc/frr/frr.conf
+        - spirou/nftables.conf:/etc/nftables.conf
+      exec:
+        - ip tunnel add gre1 mode gre local 10.100.1.1 remote 10.100.1.2 ttl 64
+        - ip addr add 192.168.1.1/24 dev gre1
+        - ip link set gre1 up
+        - ip link set dev gre1 multicast on
+        - sysctl -w net.ipv4.conf.gre1.rp_filter=0
+        - sysctl -w net.ipv4.conf.all.rp_filter=0
+
+    ecotype1:
+      group: routers
+      binds:
+        - ecotype1/daemons:/etc/frr/daemons
+        - ecotype1/frr.conf:/etc/frr/frr.conf
+        - ecotype1/nftables.conf:/etc/nftables.conf
+      exec:
+        - ip tunnel add gre1 mode gre local 10.100.1.2 remote 10.100.1.1 ttl 64
+        - ip addr add 192.168.1.2/24 dev gre1
+        - ip link set gre1 up
+        - ip link set dev gre1 multicast on
+        - sysctl -w net.ipv4.conf.gre1.rp_filter=0
+        - sysctl -w net.ipv4.conf.all.rp_filter=0
+
+    ecotype2:
+      group: routers
+      binds:
+        - ecotype2/daemons:/etc/frr/daemons
+        - ecotype2/frr.conf:/etc/frr/frr.conf
+
+    PC1:
+      group: hosts
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.10.11.2/24 dev eth1
+        - ip route add 10.10.0.0/16 via 10.10.11.1 dev eth1
+        - ip route add default via 10.10.11.1 dev eth1
+        # - ip route add 224.0.0.0/4 dev eth1
+    PC2:
+      group: hosts
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.10.12.2/24 dev eth1
+        - ip route add 10.10.0.0/16 via 10.10.12.1 dev eth1
+        - ip route add default via 10.10.12.1 dev eth1
+        # - ip route add 224.0.0.0/4 dev eth1
+    PC3:
+      group: hosts
+      exec:
+        - ip link set eth1 up
+        - ip addr add 10.10.13.2/24 dev eth1
+        - ip route add 10.10.0.0/16 via 10.10.13.1 dev eth1
+        - ip route add default via 10.10.13.1 dev eth1
+        # - ip route add 224.0.0.0/4 dev eth1
+  links:
+    - endpoints: ["spirou:eth0", "ecotype1:eth0"]
+    - endpoints: ["ecotype1:eth1", "ecotype2:eth1"]
+
+    - endpoints: ["PC1:eth1", "spirou:eth1"]
+    - endpoints: ["PC2:eth1", "ecotype1:eth2"]
+    - endpoints: ["PC3:eth1", "ecotype2:eth2"]

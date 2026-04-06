@@ -1,0 +1,37 @@
+frr version 8.4.4
+frr defaults traditional
+hostname mcast-router-a
+!
+ip forwarding
+ip prefix-list multicast permit 224.0.0.0/4
+!
+interface enp3s0f0
+ ip address 10.176.4.1/22
+ ip ospf network point-to-point
+ ip pim
+ ip igmp
+ ip ospf area 0
+!
+interface eth0
+ description Cluster A LAN
+ ip address 10.176.4.1/30
+!
+interface gre-ab
+ description GRE tunnel to Cluster B
+ ip address 192.168.0.1/30
+ ip pim
+ ip igmp
+ ip ospf area 0
+ ip ospf network point-to-point
+ tunnel source eth0
+!
+router pim
+	bsr candidate-rp priority 0
+	bsr candidate-bsr priority 101
+	bsr candidate-rp group 224.0.0.0/4
+!
+router ospf
+ ospf router-id 1.1.1.1
+ network 10.176.4.1/22 area 0
+ network 192.168.0.0/30 area 0
+!

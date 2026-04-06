@@ -1,0 +1,149 @@
+// # Note: This script was inspired by the evaluation script from Anthony Doeraene, as well as the following scripts from the FCQUIC's repo
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/scaling/scaling.npf
+// # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
+
+%info
+FCQUIC vs QUIC vs TCP (with TLS)
+
+%config
+n_runs=1
+n_supplementary_runs=0
+timeout=180
+result_append={LATENCY}
+
+
+%late_variables
+CONNECTION_SLEEP_LENGTH=1
+BIN_LOG_LEVEL="debug"
+client_log_dir="/home/cdetry/logs/client"
+server_log_dir="/home/cdetry/logs/server"
+
+%variables
+INTERVAL=100
+LAMBDA=0.1
+NUM_CLIENTS=1
+MIN_INTERVAL=1
+TEST_LENGTH=10
+FALLBACK_DELAY=400
+// # ADDITIONAL_DATA_SIZE={0,500,1100}
+ADDITIONAL_DATA_SIZE=1100
+POISSON="true"
+USE_SYSTEM_TIME="false"
+PER_CLIENT_LAT_RESULTS=false
+SERVER_IP=""
+CLIENT_IPS="empty"
+USE_DOCKER="true"
+SERVER_BIN_PATH="/home/cdetry/bin/server"
+CLIENT_BIN_PATH="/home/cdetry/bin/client"
+
+
+%init@server
+sudo-g5k
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+
+%init@client
+sudo-g5k
+sudo sysctl -w net.core.rmem_max=26214400
+sudo sysctl -w net.core.rmem_max=26214400
+
+
+// ------------------------ SERVER ------------------------
+%script@server
+
+echo "Starting server with IP $SERVER_IP"
+
+
+if [ "$USE_DOCKER" = "true" ]; then
+    SERVER_IMAGE="corentindetry/fcquic_server"
+    SERVER_EXEC="docker run --network=host \
+            --privileged \
+            -v ${WORKDIR}:${WORKDIR} \
+            -e RUST_LOG_STYLE=always \
+            -e RUST_BACKTRACE=full \
+            -e RUST_LOG=${BIN_LOG_LEVEL} \
+            ${SERVER_IMAGE}"
+else
+    SERVER_EXEC="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${SERVER_BIN_PATH}"
+fi
+
+TEST_LENGTH_SERVER=$(echo "5+${TEST_LENGTH}" | bc)
+
+${SERVER_EXEC} \
+--cert-path /home/cdetry \
+--src ${SERVER_IP}:4433 --mc-src-addr ${SERVER_IP}:4443 --test-mode --flexicast \
+--fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy --length ${TEST_LENGTH_SERVER} > $server_log_dir/server.log 2>&1 &
+
+echo "Server running!"
+sleep $TEST_LENGTH_SERVER
+
+// ------------------------ CLIENTS ------------------------
+%script@client delay=1
+
+echo "Starting clients"
+
+pids=()
+
+CLIENT_ID=$(echo "${NPF_NODE_ID} + 1" | bc )
+
+LOG_FILENAME="client_${CLIENT_ID}.log"
+touch $LOG_FILENAME
+
+if [ "$CLIENT_IPS"= "empty" ]; then
+    CLIENT_IP=$(ip -f inet addr show ens5f0 | grep inet | cut -d' ' -f6 | cut -d'/' -f1)
+else
+    # must convert to a bash array otherwise it doesn't work seemingly...
+    # ips=($CLIENT_IPS)
+    ips=$CLIENT_IPS
+    CLIENT_IP=${ips[$NPF_NODE_ID]}
+fi
+
+echo "Client ID: ${CLIENT_ID} has IP: ${CLIENT_IP}"
+
+CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+
+# if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
+    # if there is only one client, make that client compute the latency
+    CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
+# fi
+
+if [ "$CLIENT_ID" = "1" ]; then
+    echo "client${CLIENT_ID} is the sender"
+    CLIENT_ARGS="$CLIENT_ARGS --sender"
+fi
+
+if [ "$PER_CLIENT_LAT_RESULTS" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --per-client-latency"
+fi
+
+if [ "$POISSON" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --poisson --lambda ${LAMBDA}"
+fi
+if [ "$USE_SYSTEM_TIME" = "true" ]; then
+    CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
+fi
+
+if [ "$USE_DOCKER" = "true" ]; then
+    CLIENT_IMAGE="corentindetry/fcquic_client"
+    client_exec="docker run --network=host \
+            --privileged \
+            -v ${WORKDIR}:${WORKDIR} \
+            -e RUST_LOG_STYLE=always \
+            -e RUST_BACKTRACE=full \
+            -e RUST_LOG=${BIN_LOG_LEVEL} \
+            ${CLIENT_IMAGE}"
+else
+    client_exec="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${CLIENT_BIN_PATH}"
+fi
+
+$client_exec https://${SERVER_IP}:4433 \
+-l $CLIENT_IP --flexicast ${CLIENT_ARGS} 2> $client_log_dir/client_${CLIENT_ID}.log &
+
+# store the pid of this client into the pids set
+pids[${CLIENT_ID}]=$!
+
+# wait for all clients to finish
+for pid in ${pids[*]}; do
+    wait $pid
+done

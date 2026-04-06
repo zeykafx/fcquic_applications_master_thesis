@@ -1,0 +1,289 @@
+{
+  "name": "gre_ospf",
+  "type": "clab",
+  "clab": {
+    "config": {
+      "prefix": "clab",
+      "mgmt": {
+        "network": "clab",
+        "bridge": "br-31c5e26e3da4",
+        "ipv4-subnet": "172.20.20.0/24",
+        "ipv4-gw": "172.20.20.1",
+        "ipv6-subnet": "3fff:172:20:20::/64",
+        "ipv6-gw": "3fff:172:20:20::1",
+        "external-access": true
+      }
+    }
+  },
+  "ssh-pub-keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHcvopjcrP1u/Uk26PdY8dPbs2Y8x8fyO9Rcu6e0+71F","ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGL6Oqc1zoshiLSBExVXX8ADIsMh3dIJUH6e5gy2qLpL"],
+  "nodes": {
+    "PC1": {
+      "index": "0",
+      "shortname": "PC1",
+      "longname": "clab-gre_ospf-PC1",
+      "fqdn": "PC1.gre_ospf.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC1",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:3.22.2",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC1",
+        "clab-node-longname": "clab-gre_ospf-PC1",
+        "clab-node-name": "PC1",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    },
+    "PC2": {
+      "index": "1",
+      "shortname": "PC2",
+      "longname": "clab-gre_ospf-PC2",
+      "fqdn": "PC2.gre_ospf.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC2",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:3.22.2",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC2",
+        "clab-node-longname": "clab-gre_ospf-PC2",
+        "clab-node-name": "PC2",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    },
+    "PC3": {
+      "index": "2",
+      "shortname": "PC3",
+      "longname": "clab-gre_ospf-PC3",
+      "fqdn": "PC3.gre_ospf.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC3",
+      "kind": "linux",
+      "image": "wbitt/network-multitool:3.22.2",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/PC3",
+        "clab-node-longname": "clab-gre_ospf-PC3",
+        "clab-node-name": "PC3",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    },
+    "ecotype1": {
+      "index": "3",
+      "shortname": "ecotype1",
+      "longname": "clab-gre_ospf-ecotype1",
+      "fqdn": "ecotype1.gre_ospf.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/ecotype1",
+      "kind": "linux",
+      "image": "quay.io/frrouting/frr:10.5.1",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/ecotype1",
+        "clab-node-longname": "clab-gre_ospf-ecotype1",
+        "clab-node-name": "ecotype1",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    },
+    "ecotype2": {
+      "index": "4",
+      "shortname": "ecotype2",
+      "longname": "clab-gre_ospf-ecotype2",
+      "fqdn": "ecotype2.gre_ospf.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/ecotype2",
+      "kind": "linux",
+      "image": "quay.io/frrouting/frr:10.5.1",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/ecotype2",
+        "clab-node-longname": "clab-gre_ospf-ecotype2",
+        "clab-node-name": "ecotype2",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    },
+    "spirou": {
+      "index": "5",
+      "shortname": "spirou",
+      "longname": "clab-gre_ospf-spirou",
+      "fqdn": "spirou.gre_ospf.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/spirou",
+      "kind": "linux",
+      "image": "quay.io/frrouting/frr:10.5.1",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-31c5e26e3da4",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/clab-gre_ospf/spirou",
+        "clab-node-longname": "clab-gre_ospf-spirou",
+        "clab-node-name": "spirou",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_ospf/gre_ospf.clab.yml",
+        "containerlab": "gre_ospf"
+      },
+      "port-bindings": [
+      ]
+    }
+  },
+  "links": [
+    {
+      "endpoints": {
+        "a": {
+          "node": "spirou",
+          "interface": "eth0",
+          "mac": "aa:c1:ab:49:d1:be",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype1",
+          "interface": "eth0",
+          "mac": "aa:c1:ab:75:8b:ad",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "ecotype1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:e1:00:8f",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:75:f2:cd",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:13:8a:f3",
+          "peer": "z"
+        },
+        "z": {
+          "node": "spirou",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:7b:2f:70",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:5d:58:30",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype1",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:ba:8e:b9",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC3",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:bd:5f:b3",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype2",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:f3:5c:e7",
+          "peer": "a"
+        }
+      }
+    }
+  ]
+}

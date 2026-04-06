@@ -1,0 +1,44 @@
+frr version 8.4.4
+frr defaults traditional
+!
+ip forwarding
+!
+ip prefix-list multicast permit 224.0.0.0/4
+!
+interface lo
+    ip address {{ lo_address }}/32
+!
+interface {{ prod_iface }}
+    ip address {{ prod_net_ip }}/24
+    ip ospf network point-to-point
+    ip ospf hello-interval 1
+    ip ospf dead-interval 4
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ip ospf area 0
+!
+interface gre1
+    ip address 192.168.0.{{ tunnel_node_id }}/30
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ip ospf area 0
+    ip ospf network point-to-point
+    ip ospf hello-interval 1
+    ip ospf dead-interval 4
+    tunnel source {{ prod_iface }}
+!
+router pim
+    bsr candidate-rp priority {{ rp_prio }}
+    bsr candidate-bsr priority {{ bsr_prio }}
+    bsr candidate-rp group 224.0.0.0/4
+!
+router ospf
+    router-id {{ router_id }}
+    timers throttle spf 10 50 5000
+    network {{ prod_network }}/24 area 0
+    !network 192.168.0.0/30 area 0
+!
+line vty
+!

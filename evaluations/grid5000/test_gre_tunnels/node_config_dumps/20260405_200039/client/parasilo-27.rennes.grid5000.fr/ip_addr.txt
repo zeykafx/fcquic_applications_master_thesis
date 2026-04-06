@@ -1,0 +1,5 @@
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eno3             DOWN           
+eno1             UP             172.16.97.27/20 10.158.0.1/22 fe80::eef4:bbff:fed0:fbe8/64 
+eno4             DOWN           
+eno2             DOWN           

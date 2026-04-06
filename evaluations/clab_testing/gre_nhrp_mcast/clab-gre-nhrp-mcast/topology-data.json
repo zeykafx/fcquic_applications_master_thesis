@@ -1,0 +1,289 @@
+{
+  "name": "gre-nhrp-mcast",
+  "type": "clab",
+  "clab": {
+    "config": {
+      "prefix": "clab",
+      "mgmt": {
+        "network": "clab",
+        "bridge": "br-c7afe2a6ccfe",
+        "ipv4-subnet": "172.20.20.0/24",
+        "ipv4-gw": "172.20.20.1",
+        "ipv6-subnet": "3fff:172:20:20::/64",
+        "ipv6-gw": "3fff:172:20:20::1",
+        "external-access": true
+      }
+    }
+  },
+  "ssh-pub-keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHcvopjcrP1u/Uk26PdY8dPbs2Y8x8fyO9Rcu6e0+71F","ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGL6Oqc1zoshiLSBExVXX8ADIsMh3dIJUH6e5gy2qLpL"],
+  "nodes": {
+    "PC1": {
+      "index": "0",
+      "shortname": "PC1",
+      "longname": "clab-gre-nhrp-mcast-PC1",
+      "fqdn": "PC1.gre-nhrp-mcast.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC1",
+      "kind": "linux",
+      "image": "alpine-mcast",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC1",
+        "clab-node-longname": "clab-gre-nhrp-mcast-PC1",
+        "clab-node-name": "PC1",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    },
+    "PC2": {
+      "index": "1",
+      "shortname": "PC2",
+      "longname": "clab-gre-nhrp-mcast-PC2",
+      "fqdn": "PC2.gre-nhrp-mcast.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC2",
+      "kind": "linux",
+      "image": "alpine-mcast",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC2",
+        "clab-node-longname": "clab-gre-nhrp-mcast-PC2",
+        "clab-node-name": "PC2",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    },
+    "PC3": {
+      "index": "2",
+      "shortname": "PC3",
+      "longname": "clab-gre-nhrp-mcast-PC3",
+      "fqdn": "PC3.gre-nhrp-mcast.io",
+      "group": "hosts",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC3",
+      "kind": "linux",
+      "image": "alpine-mcast",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "hosts",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/PC3",
+        "clab-node-longname": "clab-gre-nhrp-mcast-PC3",
+        "clab-node-name": "PC3",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    },
+    "ecotype1": {
+      "index": "3",
+      "shortname": "ecotype1",
+      "longname": "clab-gre-nhrp-mcast-ecotype1",
+      "fqdn": "ecotype1.gre-nhrp-mcast.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/ecotype1",
+      "kind": "linux",
+      "image": "alpine-frr",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/ecotype1",
+        "clab-node-longname": "clab-gre-nhrp-mcast-ecotype1",
+        "clab-node-name": "ecotype1",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    },
+    "ecotype2": {
+      "index": "4",
+      "shortname": "ecotype2",
+      "longname": "clab-gre-nhrp-mcast-ecotype2",
+      "fqdn": "ecotype2.gre-nhrp-mcast.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/ecotype2",
+      "kind": "linux",
+      "image": "alpine-frr",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/ecotype2",
+        "clab-node-longname": "clab-gre-nhrp-mcast-ecotype2",
+        "clab-node-name": "ecotype2",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    },
+    "spirou": {
+      "index": "5",
+      "shortname": "spirou",
+      "longname": "clab-gre-nhrp-mcast-spirou",
+      "fqdn": "spirou.gre-nhrp-mcast.io",
+      "group": "routers",
+      "labdir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/spirou",
+      "kind": "linux",
+      "image": "alpine-frr",
+      "mgmt-net": "",
+      "mgmt-intf": "",
+      "mgmt-ipv4-address": "",
+      "mgmt-ipv4-prefix-length": 0,
+      "mgmt-ipv6-address": "",
+      "mgmt-ipv6-prefix-length": 0,
+      "mac-address": "",
+      "labels": {
+        "clab-mgmt-net-bridge": "br-c7afe2a6ccfe",
+        "clab-node-group": "routers",
+        "clab-node-kind": "linux",
+        "clab-node-lab-dir": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/clab-gre-nhrp-mcast/spirou",
+        "clab-node-longname": "clab-gre-nhrp-mcast-spirou",
+        "clab-node-name": "spirou",
+        "clab-node-type": "",
+        "clab-owner": "corentin",
+        "clab-topo-file": "/home/corentin/fcquic_applications_master_thesis/evaluations/clab_testing/gre_nhrp_mcast/gre_nhrp_mcast.clab.yml",
+        "containerlab": "gre-nhrp-mcast"
+      },
+      "port-bindings": [
+      ]
+    }
+  },
+  "links": [
+    {
+      "endpoints": {
+        "a": {
+          "node": "spirou",
+          "interface": "eth0",
+          "mac": "aa:c1:ab:3f:06:db",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype1",
+          "interface": "eth0",
+          "mac": "aa:c1:ab:de:74:0e",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "ecotype1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:6c:16:cc",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:54:01:e9",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC1",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:9b:b3:bc",
+          "peer": "z"
+        },
+        "z": {
+          "node": "spirou",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:35:ec:ff",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC2",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:d1:f7:5a",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype1",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:4c:8d:a0",
+          "peer": "a"
+        }
+      }
+    },
+    {
+      "endpoints": {
+        "a": {
+          "node": "PC3",
+          "interface": "eth1",
+          "mac": "aa:c1:ab:32:2b:d5",
+          "peer": "z"
+        },
+        "z": {
+          "node": "ecotype2",
+          "interface": "eth2",
+          "mac": "aa:c1:ab:e9:f4:f1",
+          "peer": "a"
+        }
+      }
+    }
+  ]
+}
