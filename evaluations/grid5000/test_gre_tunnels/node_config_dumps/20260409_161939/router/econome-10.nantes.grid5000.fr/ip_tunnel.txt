@@ -1,0 +1,2 @@
+gre0: gre/ip remote any local any ttl inherit nopmtudisc
+gre1: gre/ip remote 172.16.97.21 local 172.16.192.10 ttl 255

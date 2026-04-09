@@ -4,8 +4,6 @@ ip forwarding
 !
 ip prefix-list multicast permit 224.0.0.0/4
 !
-ip route 0.0.0.0/0 172.16.207.254 250
-!
 interface lo
     ip address 10.176.3.254/32
     ip igmp
@@ -17,18 +15,16 @@ interface lo
     isis passive
 !
 interface enp3s0f0
-    ! ip address 10.176.0.1/24
-    ! ip pim
+    ip address 10.176.0.1/24
+    ip pim
     ip igmp
     ip igmp immediate-leave
-    ! ip router isis 1
-    ! isis network point-to-point
-    ! isis metric 1
-    ! isis passive
+    ip router isis 1
+    isis network point-to-point
+    isis metric 1
 !
 interface gre1
-    ! ip address 192.168.0.1/30
-    ip address 10.176.0.1/24
+    ip address 192.168.0.1/30
     ip pim
     ip igmp
     ip igmp immediate-leave
@@ -42,6 +38,7 @@ router pim
 !
 router isis 1
   is-type level-1
+  redistribute connected
   net 49.0000.0000.0000.0002.00
   lsp-timers level-1 gen-interval 5 refresh-interval 10 max-lifetime 1200
   spf-interval 5

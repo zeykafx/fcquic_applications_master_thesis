@@ -1,0 +1,6 @@
+default via 172.16.207.254 dev enp3s0f0 
+10.176.0.0/24 dev enp3s0f0 proto kernel scope link src 10.176.0.1 
+10.176.0.0/22 dev enp3s0f0 proto kernel scope link src 10.176.0.1 
+172.16.192.0/20 dev enp3s0f0 proto kernel scope link src 172.16.192.13 
+192.168.0.0/30 dev gre1 proto kernel scope link src 192.168.0.1 
+224.0.0.0/4 dev gre1 scope link 

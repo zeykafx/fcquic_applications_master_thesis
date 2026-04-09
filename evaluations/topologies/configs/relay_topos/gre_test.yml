@@ -3,7 +3,7 @@ topology:
         routers:
             multicast: True
             rp_id: 1
-            use_asm: yes
+            use_asm: false
             asm_prefix: "224.0.0.0/4"
 
         links:
