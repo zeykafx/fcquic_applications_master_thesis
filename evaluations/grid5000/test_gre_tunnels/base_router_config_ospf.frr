@@ -26,8 +26,9 @@ interface {{ prod_iface }}
     ! ip ospf area 0 ! Don't use this line when using the network xyz commands otherwise those don't apply and the prefix list doesn't either
     ip ospf passive
 !
-interface gre1
-    ip address 192.168.0.{{ tunnel_node_id }}/30
+{% for tunnel in tunnels %}
+interface {{ tunnel.iface }}
+    ip address {{ tunnel.ip }}/30
     ip pim
     ip igmp
     ip igmp immediate-leave
@@ -35,13 +36,16 @@ interface gre1
     ip ospf network point-to-point
     tunnel source {{ prod_iface }}
 !
+{% endfor %}
 router pim
     ssm prefix-list multicast
 !
 router ospf
     ospf router-id {{ router_id }}
     network {{ prod_network }}/24 area 0
-    network 192.168.0.{{ tunnel_node_id }}/30 area 0
+{% for tunnel in tunnels %}
+    network {{ tunnel.network }}/30 area 0
+{% endfor %}
     network {{ lo_address }}/32 area 0
     area 0 export-list ospf_out
 !
