@@ -3,6 +3,9 @@ frr defaults traditional
 ip forwarding
 !
 ip prefix-list multicast permit 224.0.0.0/4
+
+! ip prefix-list isis_out seq 5 deny 172.16.0.0 ge 16 le 22
+! ip prefix-list isis_out seq 10 permit any
 !
 ! ip route 0.0.0.0/0 {{ gateway }} 250
 ip route 172.16.0.0/16 {{ gateway }} 1
@@ -27,8 +30,9 @@ interface {{ prod_iface }}
     ! isis metric 1
     ! isis passive
 !
-interface gre1
-    ip address 192.168.0.{{ tunnel_node_id }}/30
+{% for tunnel in tunnels %}
+interface {{ tunnel.iface }}
+    ip address {{ tunnel.ip }}/30
     ip pim
     ip igmp
     ip igmp immediate-leave
@@ -38,6 +42,7 @@ interface gre1
     no isis hello padding
     tunnel source {{ prod_iface }}
 !
+{% endfor %}
 router pim
     ssm prefix-list multicast
 !
