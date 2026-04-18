@@ -1,0 +1,11 @@
+lo               UNKNOWN        127.0.0.1/8 10.176.3.254/32 ::1/128 
+eno1             DOWN           
+eno2             DOWN           
+enp3s0f0         UP             172.16.192.7/20 10.176.0.1/24 fe80::a236:9fff:fe0e:24a8/64 
+enp3s0f1         DOWN           
+gre0@NONE        DOWN           
+gretap0@NONE     DOWN           
+erspan0@NONE     DOWN           
+gre1@NONE        UNKNOWN        192.168.0.1/30 fe80::5efe:ac10:c007/64 
+pimreg@NONE      UNKNOWN        
+pim6reg@NONE     UNKNOWN        

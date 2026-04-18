@@ -8,17 +8,17 @@ ip prefix-list ospf_out seq 5 deny 172.16.0.0 ge 16 le 22
 ip prefix-list ospf_out seq 10 permit any
 
 !
-ip route 172.16.0.0/16 172.16.111.254 1
+ip route 172.16.0.0/16 172.16.175.254 1
 !
 interface lo
-    ip address 10.158.15.254/32
+    ip address 10.168.3.254/32
     ip igmp
     ip pim
     ! ip ospf area 0
     ip igmp immediate-leave
 !
-interface eno1
-    ip address 10.158.12.1/24
+interface ens10f0
+    ip address 10.168.0.1/24
     ip pim
     ip igmp
     ip igmp immediate-leave
@@ -27,37 +27,25 @@ interface eno1
 !
 
 interface gre1
-    ip address 192.168.0.2/30
+    ip address 192.168.0.6/30
     ip pim
     ip igmp
     ip igmp immediate-leave
     ! ip ospf area 0
     ip ospf network point-to-point
-    tunnel source eno1
-!
-
-interface gre2
-    ip address 192.168.0.5/30
-    ip pim
-    ip igmp
-    ip igmp immediate-leave
-    ! ip ospf area 0
-    ip ospf network point-to-point
-    tunnel source eno1
+    tunnel source ens10f0
 !
 
 router pim
     ssm prefix-list multicast
 !
 router ospf
-    ospf router-id 2.2.2.2
-    network 10.158.12.0/24 area 0
-
-    network 192.168.0.0/30 area 0
+    ospf router-id 3.3.3.3
+    network 10.168.0.0/24 area 0
 
     network 192.168.0.4/30 area 0
 
-    network 10.158.15.254/32 area 0
+    network 10.168.3.254/32 area 0
     area 0 export-list ospf_out
 !
 line vty
