@@ -1,3 +1,0 @@
-role=server
-alias=econome-18.nantes.grid5000.fr
-address=econome-18.nantes.grid5000.fr

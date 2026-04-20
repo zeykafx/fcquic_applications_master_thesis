@@ -1,3 +1,0 @@
-role=client
-alias=parasilo-8.rennes.grid5000.fr
-address=parasilo-8.rennes.grid5000.fr

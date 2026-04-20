@@ -1,7 +1,0 @@
-default via 172.16.207.254 dev enp3s0f0 
-10.158.8.0/24 nhid 20 via 192.168.0.2 dev gre1 proto ospf metric 20 
-10.158.11.254 nhid 20 via 192.168.0.2 dev gre1 proto ospf metric 20 
-10.176.24.0/24 dev enp3s0f0 proto kernel scope link src 10.176.24.1 
-172.16.0.0/16 nhid 13 via 172.16.207.254 dev enp3s0f0 proto static metric 20 
-172.16.192.0/20 dev enp3s0f0 proto kernel scope link src 172.16.192.22 
-192.168.0.0/30 dev gre1 proto kernel scope link src 192.168.0.1 

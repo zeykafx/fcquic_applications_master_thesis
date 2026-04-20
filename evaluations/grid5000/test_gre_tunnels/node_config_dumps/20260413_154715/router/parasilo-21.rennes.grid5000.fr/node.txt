@@ -1,3 +1,0 @@
-role=router
-alias=parasilo-21.rennes.grid5000.fr
-address=parasilo-21.rennes.grid5000.fr

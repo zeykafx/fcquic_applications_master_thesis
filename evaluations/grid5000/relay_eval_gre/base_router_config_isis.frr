@@ -1,0 +1,56 @@
+frr defaults traditional
+!
+ip forwarding
+!
+ip prefix-list multicast permit 224.0.0.0/4
+
+! ip prefix-list isis_out seq 5 deny 172.16.0.0 ge 16 le 22
+! ip prefix-list isis_out seq 10 permit any
+!
+! ip route 0.0.0.0/0 {{ gateway }} 250
+ip route 172.16.0.0/16 {{ gateway }} 1
+!
+interface lo
+    ip address {{ lo_address }}/32
+    ip igmp
+    ip pim
+    ip igmp immediate-leave
+    ip router isis 1
+    isis network point-to-point
+    isis metric 1
+    isis passive
+!
+interface {{ prod_iface }}
+    ip address {{ prod_net_ip }}/24
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ! ip router isis 1
+    ! isis network point-to-point
+    ! isis metric 1
+    ! isis passive
+!
+{% for tunnel in tunnels %}
+interface {{ tunnel.iface }}
+    ip address {{ tunnel.ip }}/30
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ip router isis 1
+    isis network point-to-point
+    isis metric 1
+    no isis hello padding
+    tunnel source {{ prod_iface }}
+!
+{% endfor %}
+router pim
+    ssm prefix-list multicast
+!
+router isis 1
+  is-type level-1
+  net 49.0000.0000.0000.000{{ isis_router_id }}.00
+  lsp-timers level-1 gen-interval 5 refresh-interval 10 max-lifetime 1200
+  spf-interval 5
+!
+line vty
+!

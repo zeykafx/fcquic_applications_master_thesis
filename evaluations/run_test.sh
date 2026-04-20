@@ -115,7 +115,7 @@ RUN_LOGS_DIR_TCP=${LOGS_BASE_DIR_TCP}
 # ------------ BASELINE TCP (NO TLS) ------------
 
 # setup tcp_no_tls logs directory
-PREV_RUN_NBR_TCP=${PREV_RUN_NBR_TCP_NO_TLS:-0}
+PREV_RUN_NBR_TCP_NO_TLS=${PREV_RUN_NBR_TCP_NO_TLS:-0}
 CUR_RUN_TCP_NO_TLS=$(echo "${PREV_RUN_NBR_TCP_NO_TLS}+1" | bc)
 LOGS_BASE_DIR_TCP_NO_TLS=${DIR}/${CUR_RUN_TCP_NO_TLS}
 
@@ -242,12 +242,12 @@ sudo chmod 777 ./tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv
 
 # ---------------- Plots ----------------
 
-echo "Graphing results"
+# echo "Graphing results"
 
 
-cd $WORKDIR/evaluations/graphs
+# cd $WORKDIR/evaluations/graphs
 
-./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME}
+# ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME}
 
 
 # If we ran the latency test, also output the clipped cdf graph
@@ -255,7 +255,7 @@ cd $WORKDIR/evaluations/graphs
 #     ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} --clip
 # fi
 
-echo "Plots written"
+# echo "Plots written"
 
 # ---------------- Tearing down the topology ----------------
 

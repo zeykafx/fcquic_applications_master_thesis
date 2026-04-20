@@ -1,3 +1,0 @@
-role=router
-alias=econome-17.nantes.grid5000.fr
-address=econome-17.nantes.grid5000.fr

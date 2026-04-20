@@ -1,3 +1,0 @@
-role=router
-alias=fleckenstein-1.strasbourg.grid5000.fr
-address=fleckenstein-1.strasbourg.grid5000.fr
