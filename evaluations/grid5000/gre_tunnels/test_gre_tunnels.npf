@@ -99,7 +99,7 @@ fi
 // # loop over each namespace on this node
 for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
 
-    // # global client ID = (node_id * num_ns) + ns_idx; +1 for 1-based
+    // # global client ID = (node_id * num_ns) + ns_idx; +1 
     GLOBAL_IDX=$(echo "${NPF_NODE_ID}*${NUM_NS_PER_CLIENT}" + ${NS_IDX} | bc)
     CLIENT_ID=$(echo "${GLOBAL_IDX} +1" | bc)
     NS_NAME="client-${NS_IDX}"
@@ -112,7 +112,7 @@ for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
 
     echo "Client ID: ${CLIENT_ID} (ns=${NS_NAME}) has IP: ${CLIENT_IP}"
 
-    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE} --cc-algorithm ${CC_ALGO}"
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE} --cc-algorithm ${CC_ALGO}"
 
     CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
 

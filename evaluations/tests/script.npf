@@ -5,6 +5,8 @@
 %info
 FCQUIC vs QUIC vs TCP (with TLS)
 
+# %import@server dev_rate NIC=0 SIDE=rx RATE_THRESH=100000
+
 %config
 n_runs=3
 timeout=3600
@@ -20,7 +22,8 @@ BIN_LOG_LEVEL="info"
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers"
 CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
-NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
+NUM_CLIENTS={2,11,21,31,41,51,61,71,81,91,101}
+// # NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
 // # NUM_CLIENTS={2,3,7,15,23,35}
 // # NUM_CLIENTS={3,9,15,21,27,33}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
@@ -28,8 +31,7 @@ NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
 // # NUM_CLIENTS={2,3,7,11,15,19,23}
 // # NUM_CLIENTS={2,3,5,7,9,11}
 INTERVAL=100
-MIN_INTERVAL=1
-LAMBDA=0.100
+LAMBDA=100
 TEST_LENGTH=11
 FALLBACK_DELAY=200
 ADDITIONAL_DATA_SIZE=1100
@@ -41,8 +43,6 @@ latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
 latency:LAMBDA=0.1
 // # latency:LAMBDA=0.100
-latency:MIN_INTERVAL=1
-// # latency:MIN_INTERVAL=10
 latency:TEST_LENGTH=11
 latency:FALLBACK_DELAY=400
 // # latency:ADDITIONAL_DATA_SIZE=1100
@@ -55,7 +55,6 @@ data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
 data:LAMBDA=0.100
-data:MIN_INTERVAL=10
 data:TEST_LENGTH=11
 data:FALLBACK_DELAY=200
 data:ADDITIONAL_DATA_SIZE={0,500,1100,2200,3000}
@@ -269,7 +268,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
     # run the client app in the client namespace
     # NOTE: redirect stdin from /dev/null and redirect stdout to logs/client{id}.log (but also redirect stdout to stdin with 2>&1, the log file in this case)
 
-    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
 
     if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
         # if there is only one client, make that client compute the latency

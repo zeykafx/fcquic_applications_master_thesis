@@ -126,7 +126,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
     MCAST_CLIENT_IP=$(sudo ip netns exec ${CLIENT_NS_NAME} ip route | grep 'default ' | awk '{ print $3 }')
     echo "Client ID: ${CLIENT_ID} has IP: ${CLIENT_IP}, multicast ip: ${MCAST_CLIENT_IP}"
 
-    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --min-interval ${MIN_INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE}"
 
     if [ "$CLIENT_ID" = "1" ] && [ "$NUM_CLIENTS" = "1" ]; then
         # if there is only one client, make that client compute the latency
