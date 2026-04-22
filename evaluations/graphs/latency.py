@@ -122,7 +122,6 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
         return
 
     # remove outliers
-    # NOTE: is this okay to do???
     q = data_df["y_LATENCY"].quantile(0.995)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q].copy()
@@ -476,10 +475,10 @@ def process_and_plot(
         # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
         # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
         # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
-        x_min = float(all_latencies.quantile(0.50))
+        x_min = float(all_latencies.quantile(0.90))
         x_max = float(all_latencies.max())
         axins.set_xlim(x_min, x_max)
-        axins.set_ylim(0.5)
+        axins.set_ylim(0.9)
 
         axins.tick_params(labelsize=8)
         axins.grid(True, alpha=0.3)

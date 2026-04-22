@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from style import (
+ 
+    CONFIDENCE_BAND_OPACITY,
+    FCQUIC_RELAY_COLOR,
+    FCQUIC_RELAY_LINESTYLE,
+    FCQUIC_RELAY_MARKER,
+    NO_RELAY_COLOR,
+    NO_RELAY_LINESTYLE,
+    NO_RELAY_MARKER,
+    APP_RELAY_COLOR,
+    APP_RELAY_LINESTYLE,
+    APP_RELAY_MARKER,
+    LINEWIDTH,
+    MARKERSIZE,
+    latexify,
+)
+
+
+def file_path(path):
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
+
+
+def dir_path(path):
+    if os.path.isdir(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
+
+
+def main(res_path, out_path, name, inset=False):
+    data_df = pd.read_csv(res_path)
+
+    # clean up the messy quotes that npf adds
+    data_df["RELAY_VERSION"] = data_df["RELAY_VERSION"].str.replace('"', "")
+
+    if "ADDITIONAL_DATA_SIZE" in data_df.columns:
+        additional_data_sizes = sorted(data_df["ADDITIONAL_DATA_SIZE"].unique())
+        print(f"ADDITIONAL_DATA_SIZE values: {additional_data_sizes}")
+    else:
+        additional_data_sizes = [None]
+
+    for data_size in additional_data_sizes:
+        if data_size is not None:
+            size_filtered_df = data_df[data_df["ADDITIONAL_DATA_SIZE"] == data_size]
+        else:
+            size_filtered_df = data_df
+
+        process_and_plot(
+            size_filtered_df,
+            out_path,
+            name,
+            data_size,
+            inset,
+        )
+
+    plot_mean_median_vs_data_size(data_df, out_path, name)
+
+
+def get_median_std_grouped_for_df(df):
+    grouped = (
+        df[["ADDITIONAL_DATA_SIZE", "y_LATENCY"]]
+        .groupby("ADDITIONAL_DATA_SIZE")
+        .agg(["median", "std", "count"])
+    )
+    grouped = grouped.droplevel(axis=1, level=0).reset_index()
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["median"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["median"] + grouped["ci"]
+    return grouped
+
+
+def get_mean_std_grouped_for_df(df):
+    grouped = (
+        df[["ADDITIONAL_DATA_SIZE", "y_LATENCY"]]
+        .groupby("ADDITIONAL_DATA_SIZE")
+        .agg(["mean", "std", "count"])
+    )
+    grouped = grouped.droplevel(axis=1, level=0).reset_index()
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
+    return grouped
+
+
+def plot_mean_median_vs_data_size(data_df, out_path, name):
+    if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
+        print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
+        return
+
+    # remove outliers
+    q = data_df["y_LATENCY"].quantile(0.995)
+    print(f"Outlier threshold: {q}")
+    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+
+    # from microseconds to milliseconds
+    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+
+    # clean up the messy quotes that npf adds
+    data_df["RELAY_VERSION"] = data_df["RELAY_VERSION"].str.replace('"', "")
+
+    # filter dataframes based on RELAY_VERSION, mappings:
+    df_no_relay = data_df[data_df["RELAY_VERSION"] == "none"]
+    df_fcquic_relay = data_df[data_df["RELAY_VERSION"] == "RELAY"]
+    df_app_relay = data_df[data_df["RELAY_VERSION"] == "APP_RELAY"]
+
+    for mean_or_median in ["mean", "median"]:
+        if mean_or_median == "mean":
+            no_relay_grouped = get_mean_std_grouped_for_df(df_no_relay)
+            fcquic_relay_grouped = get_mean_std_grouped_for_df(df_fcquic_relay)
+            app_relay_grouped = get_mean_std_grouped_for_df(df_app_relay)
+        else:
+            no_relay_grouped = get_median_std_grouped_for_df(df_no_relay)
+            fcquic_relay_grouped = get_median_std_grouped_for_df(df_fcquic_relay)
+            app_relay_grouped = get_median_std_grouped_for_df(df_app_relay)
+ 
+
+        sns.set_style("whitegrid")
+        plt.figure(figsize=(8, 6))
+        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+
+        if len(no_relay_grouped) > 0:
+            x = no_relay_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                no_relay_grouped[mean_or_median],
+                label="FC-QUIC",
+                color=NO_RELAY_COLOR,
+                linestyle=NO_RELAY_LINESTYLE,
+                marker=NO_RELAY_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                no_relay_grouped["ci_lower"],
+                no_relay_grouped["ci_upper"],
+                color=NO_RELAY_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(fcquic_relay_grouped) > 0:
+            x = fcquic_relay_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                fcquic_relay_grouped[mean_or_median],
+                label="FC-QUIC with FEC",
+                color=FCQUIC_RELAY_COLOR,
+                linestyle=FCQUIC_RELAY_LINESTYLE,
+                marker=FCQUIC_RELAY_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                fcquic_relay_grouped["ci_lower"],
+                fcquic_relay_grouped["ci_upper"],
+                color=FCQUIC_RELAY_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        if len(app_relay_grouped) > 0:
+            x = app_relay_grouped["ADDITIONAL_DATA_SIZE"]
+            plt.plot(
+                x,
+                app_relay_grouped[mean_or_median],
+                label="Baseline QUIC",
+                color=APP_RELAY_COLOR,
+                linestyle=APP_RELAY_LINESTYLE,
+                marker=APP_RELAY_MARKER,
+                markersize=MARKERSIZE,
+                lw=LINEWIDTH,
+            )
+            plt.fill_between(
+                x,
+                app_relay_grouped["ci_lower"],
+                app_relay_grouped["ci_upper"],
+                color=APP_RELAY_COLOR,
+                alpha=CONFIDENCE_BAND_OPACITY,
+            )
+
+        plt.xlabel("Additional data size (bytes)", fontsize=12)
+        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12)
+        plt.title(
+            f"{mean_or_median.capitalize()} latency vs additional data size",
+            fontsize=14,
+        )
+        plt.ylim(bottom=0)
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(
+            f"{out_path}/{mean_or_median}_latency_{name}.svg",
+            bbox_inches="tight",
+        )
+        plt.close()
+
+
+def _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True):
+    if len(df_no_relay) > 0:
+        ax.ecdf(
+            (df_no_relay["y_LATENCY"] / 1000),
+            label="No relay" if add_labels else None,
+            color=NO_RELAY_COLOR,
+            linestyle=NO_RELAY_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_fcquic_relay) > 0:
+        ax.ecdf(
+            (df_fcquic_relay["y_LATENCY"] / 1000),
+            label="FCQUIC Relay" if add_labels else None,
+            color=FCQUIC_RELAY_COLOR,
+            linestyle=FCQUIC_RELAY_LINESTYLE,
+            lw=LINEWIDTH + 0.2,
+        )
+    if len(df_app_relay) > 0:
+        ax.ecdf(
+            (df_app_relay["y_LATENCY"] / 1000),
+            label="Application Relay" if add_labels else None,
+            color=APP_RELAY_COLOR,
+            linestyle=APP_RELAY_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+   
+def process_and_plot(
+    data_df, out_path, name, data_size, inset=False
+):
+    # remove outliers
+    q = data_df["y_LATENCY"].quantile(0.995)
+    print(f"Outlier threshold: {q}")
+    data_df = data_df[data_df["y_LATENCY"] < q]
+
+    # filter dataframes based on RELAY_VERSION, mappings:
+    df_no_relay = data_df[data_df["RELAY_VERSION"] == "none"]
+    df_fcquic_relay = data_df[data_df["RELAY_VERSION"] == "RELAY"]
+    df_app_relay = data_df[data_df["RELAY_VERSION"] == "APP_RELAY"]
+
+    len_no_relay = len(df_no_relay)
+    len_fcquic_relay = len(df_fcquic_relay)
+    len_app_relay = len(df_app_relay)
+
+    print(f"No relay samples: {len_no_relay}")
+    print(f"FCQUIC relay samples: {len_fcquic_relay}")
+    print(f"APP relay samples: {len_app_relay}")
+
+    if "run_index" in data_df.columns:
+        print("Per run breakdown")
+        for test_name, df_test in [
+            ("none", df_no_relay),
+            ("RELAY", df_fcquic_relay),
+            ("APP_RELAY", df_app_relay),
+        ]:
+            if len(df_test) > 0:
+                print(f"{test_name}:")
+                run_counts = df_test.groupby("test_index").size()
+                for run_idx, count in run_counts.items():
+                    print(f"  Run {run_idx}: {count} samples")
+
+    global_len = min(
+       len_app_relay, len_no_relay, len_fcquic_relay 
+    )
+    print(f"min length of the dataframes: {global_len}")
+
+    sns.set_style("whitegrid")
+    fig = plt.figure(figsize=(8, 6))
+    latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+
+    ax = plt.gca()
+    _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
+
+    plt.ylabel("Probability of occurence", fontsize=13)
+
+    # Add data size to title if available
+    data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
+    plt.title(
+        f"Cumulative distribution of latency, {data_size_str}",
+        fontsize=14,
+    )
+    plt.xlabel("Latency (ms)", fontsize=13)
+    # plt.xlim(left=0)
+    plt.ylim(0, 1)
+   
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # Zoomed inset, placed with AXES-relative coords so it always sits
+    # cleanly in the bottom-right corner of the plot area.
+    if inset:
+        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
+        axins.set_facecolor("white")
+        for spine in axins.spines.values():
+            spine.set_edgecolor("black")
+            spine.set_linewidth(1.0)
+
+        _plot_ecdfs(axins, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=False)
+
+        all_latencies = pd.concat([
+            df_no_relay["y_LATENCY"], df_fcquic_relay["y_LATENCY"],
+            df_app_relay["y_LATENCY"],
+        ]) / 1000
+
+        # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
+        # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
+        # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
+        x_min = float(all_latencies.quantile(0.90))
+        x_max = float(all_latencies.max())
+        axins.set_xlim(x_min, x_max)
+        axins.set_ylim(0.9)
+
+        axins.tick_params(labelsize=8)
+        axins.grid(True, alpha=0.3)
+
+        ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    else:
+        ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
+
+    fig.tight_layout()
+
+    data_size_str = f"_datasize_{data_size}" if data_size is not None else ""
+    inset_str = "_inset" if inset else ""
+ 
+    plt.savefig(
+        f"{out_path}/cdf_{name}{data_size_str}{inset_str}.svg",
+        bbox_inches="tight",
+    )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("plots")
+    parser.add_argument("file_path", type=file_path)
+    parser.add_argument("out_path", type=dir_path)
+    parser.add_argument("name", type=str) 
+    parser.add_argument(
+        "--inset",
+        action="store_true",
+        help="add a zoomed in inset for the cdfs",
+    )
+    args = parser.parse_args()
+
+    main(args.file_path, args.out_path, args.name, args.inset)
