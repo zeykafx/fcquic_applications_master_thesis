@@ -3,7 +3,7 @@
 // # - https://github.com/IPNetworkingLab/flexicast-quic/blob/1e53ef9488dd9260a6c1f966f08b83db526974cc/experiments/robustness/robustness.npf
 
 %info
-FCQUIC vs QUIC vs TCP (with TLS)
+FCQUIC relay eval
 
 %config
 n_runs=1
@@ -18,32 +18,36 @@ tcpdump_dir="/home/cdetry/"
 client_log_dir="/home/cdetry/logs/client"
 server_log_dir="/home/cdetry/logs/server"
 relay_log_dir="/home/cdetry/logs/relay"
+READY_SLEEP=1
 
 %variables
-INTERVAL=100
-LAMBDA=0.001
+// # ------------- Base test: No relay vs fcquic relay vs app relay -------------
+LAMBDA=100
 TEST_LENGTH=20
-FALLBACK_DELAY=1000
-// # ADDITIONAL_DATA_SIZE={0,500,1100}
 ADDITIONAL_DATA_SIZE=1100
-USE_RELAY={"true","false"}
-RELAY_VERSION={"RELAY","APP_RELAY"}
+RELAY_VERSION={"RELAY","APP_RELAY","none"}
+// # ------------- additional data test -------------
+data:LAMBDA=100
+data:TEST_LENGTH=20
+data:ADDITIONAL_DATA_SIZE={1100,2200}
+data:RELAY_VERSION={"RELAY","none"}
+// # ------------- Other vars -------------
+FALLBACK_DELAY=1000
 POISSON="true"
+INTERVAL=100
 CC_ALGO="disabled"
 USE_SYSTEM_TIME="true"
 PER_CLIENT_LAT_RESULTS="false"
-
 NUM_NS_PER_CLIENT=5
 SERVER_IP=""
 CLIENT_IPS="empty"
 RELAY_IPS="empty"
 SERVER_PROD_IFACE="empty"
 TCPDUMP=1
-
 USE_DOCKER="false"
-
 SERVER_BIN_PATH="/home/cdetry/bin/server"
 CLIENT_BIN_PATH="/home/cdetry/bin/client"
+RELAY_BIN_PATH="/home/cdetry/bin/fcquic_relay"
 
 // # %init@server
 // # sudo sysctl -w net.core.rmem_max=26214400
@@ -54,7 +58,6 @@ CLIENT_BIN_PATH="/home/cdetry/bin/client"
 // # sudo sysctl -w net.core.rmem_default=26214400
 
 
-%import@server cpuload CPUSUM=1
 
 // ------------------------ SERVER ------------------------
 %script@server
@@ -85,50 +88,57 @@ echo "Server running!"
 sleep $TEST_LENGTH_SERVER
 
 // ------------------------ RELAY ------------------------
-%script@relay delay=1
+%script@relay 
 
-if [ "$USE_RELAY" != "true" ]; then
+TEST_LENGTH_RELAY=$(echo "5+${TEST_LENGTH}" | bc)
+
+// give time to the server
+sleep "${READY_SLEEP}"
+
+if [ "${RELAY_VERSION}" = "none" ]; then
     echo "not testing with relays"
-    sleep $(echo "5+${TEST_LENGTH}" | bc)
-fi
-
-CURRENT_RELAY_IP=${RELAY_IPS[$NPF_NODE_ID]}
-TEST_LENGTH_SERVER=$(echo "5+${TEST_LENGTH}" | bc)
-
-echo "Starting relay ${NPF_NODE_ID} at ${CURRENT_RELAY_IP}, connecting to ${SERVER_IP}"
-
-
-if [ "$RELAY_VERSION" = "RELAY" ]; then
-    echo "Using fcquic relay"
-    RELAY_BIN_PATH="/home/cdetry/bin/relay"
+    sleep $TEST_LENGTH_RELAY
 else
-    echo "Using app relay"
-    RELAY_BIN_PATH="/home/cdetry/bin/app_relay"
-else
+
+    CURRENT_RELAY_IP=$(ip -f inet addr show | grep inet | tail -1 | awk '{print $2}' | cut -d'/' -f1)
+
+    echo "Starting relay ${NPF_NODE_ID} at ${CURRENT_RELAY_IP}, connecting to ${SERVER_IP}"
+
+    if [ "${RELAY_VERSION}" = "RELAY" ]; then
+        echo "Using fcquic relay"
+        RELAY_BIN_PATH="/home/cdetry/bin/fcquic_relay"
+    elif [ "${RELAY_VERSION}" = "APP_RELAY" ]; then
+        echo "Using app relay"
+        RELAY_BIN_PATH="/home/cdetry/bin/app_relay"
+    else
+        echo "unknown RELAY_VERSION=${RELAY_VERSION}" >&2
+        exit 1
+    fi
+
+
+    env RUST_LOG_STYLE=always RUST_BACKTRACE=full QLOGDIR=${relay_log_dir} RUST_LOG=${BIN_LOG_LEVEL} ${RELAY_BIN_PATH} \
+        https://${SERVER_IP}:4433 \
+        --src ${CURRENT_RELAY_IP}:4433 \
+        --mc-src-addr ${CURRENT_RELAY_IP}:4443 \
+        --cert-path /home/cdetry \
+        --test-mode --flexicast \
+        --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast \
+        --fec-scheduler noredundancy \
+        --cc-algorithm ${CC_ALGO} --fc-cwnd ${CC_ALGO} \
+        > ${relay_log_dir}/relay_${NPF_NODE_ID}.log 2>&1 &
+
+    echo "Relay ${NPF_NODE_ID} running at ${CURRENT_RELAY_IP}!"
+    sleep $TEST_LENGTH_RELAY
 fi
-
-env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${RELAY_BIN_PATH} \
-    https://${SERVER_IP}:4433 \
-    --src ${CURRENT_RELAY_IP}:4433 \
-    --mc-src-addr ${CURRENT_RELAY_IP}:4443 \
-    --cert-path /home/cdetry \
-    --test-mode --flexicast \
-    --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast \
-    --fec-scheduler noredundancy \
-    --cc-algorithm ${CC_ALGO} --fc-cwnd ${CC_ALGO} \
-    > ${relay_log_dir}/relay_${NPF_NODE_ID}.log 2>&1 &
-
-echo "Relay ${NPF_NODE_ID} running at ${CURRENT_RELAY_IP}!"
-sleep $TEST_LENGTH_RELAY
 
 // ------------------------ CLIENTS ------------------------
 // # clients connect to the relay in their cluster when USE_RELAY=true, otherwise directly to the server
-%script@client delay=1
+%script@client
 
 echo "Starting clients on node ${NPF_NODE_ID} (${NUM_NS_PER_CLIENT} namespaces)"
 
+
 pids=()
-ips=$CLIENT_IPS
 
 if [ "$USE_DOCKER" = "true" ]; then
     CLIENT_IMAGE="corentindetry/fcquic_client"
@@ -143,18 +153,27 @@ else
     base_exec="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${CLIENT_BIN_PATH}"
 fi
 
-// # loop over each namespace on this node
-# for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
 
-    CLIENT_ID=${NPF_NODE_ID}
-    NS_NAME="client-${CLIENT_ID}"
+// wait for server and relay to be on and read
+sleep 2
+
+// # loop over each namespace on this node
+for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
+
+
+    // # global client ID = (node_id * num_ns) + ns_idx; +1 
+    GLOBAL_IDX=$(echo "${NPF_NODE_ID}*${NUM_NS_PER_CLIENT}" + ${NS_IDX} | bc)
+    CLIENT_ID=$(echo "${GLOBAL_IDX} +1" | bc)
+    NS_NAME="client-${NS_IDX}"
+
+    # CLIENT_ID=${NPF_NODE_ID}
+    # NS_NAME="client-${CLIENT_ID}"
 
     CLIENT_IP=$(ip netns exec $NS_NAME ip -f inet addr show | grep inet | tail -1 | awk '{print $2}' | cut -d'/' -f1)
-    # CLIENT_IP=${ips[$GLOBAL_IDX]}
 
     echo "Client ID: ${CLIENT_ID} (ns=${NS_NAME}) has IP: ${CLIENT_IP}"
 
-    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --own-ip ${CLIENT_IP} --additional-data-size ${ADDITIONAL_DATA_SIZE} --cc-algorithm ${CC_ALGO}"
+    CLIENT_ARGS="-u CLIENT${CLIENT_ID} --length $TEST_LENGTH --test-mode --conn-sleep-length ${CONNECTION_SLEEP_LENGTH} --interval ${INTERVAL} --additional-data-size ${ADDITIONAL_DATA_SIZE} --cc-algorithm ${CC_ALGO}"
 
     CLIENT_ARGS="$CLIENT_ARGS --show-own-messages"
 
@@ -174,17 +193,23 @@ fi
         CLIENT_ARGS="$CLIENT_ARGS --use-system-time"
     fi
 
+    // for the test without relays, we'll just pass in an empty string so that the clients connect to the server
+    CLEAN_RELAY_IPS=""
+    if [ "$RELAY_VERSION" != "none" ]; then
+        IFS=' ' read -ra RELAY_IPS_ARR <<< "$RELAY_IPS"
+        for i in "${RELAY_IPS_ARR[@]}"; do
+            CLEAN_RELAY_IPS="${CLEAN_RELAY_IPS} --relay-ips=${i}"
+        done
+    fi
 
     // # run the client inside its network namespace
-    // # NOTE: the RELAY_IPS variable contains the "--relay-ips=" argument between each ip, so we omit it here
-    ip netns exec $NS_NAME $base_exec --server-ip ${SERVER_IP} --port 4433 ${RELAY_IPS} \
+    ip netns exec $NS_NAME $base_exec --server-ip ${SERVER_IP} --port 4433 ${CLEAN_RELAY_IPS} \
     -l $CLIENT_IP --flexicast ${CLIENT_ARGS} < /dev/null 2> $client_log_dir/client_${CLIENT_ID}.log &
-    wait
 
-    # pids[${CLIENT_ID}]=$!
-# done
+    pids[${CLIENT_ID}]=$!
+done
 
 // # wait for all clients on this node to finish
-# for pid in ${pids[*]}; do
-#     wait $pid
-# done
+for pid in ${pids[*]}; do
+    wait $pid
+done

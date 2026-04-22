@@ -22,3 +22,4 @@ fcquic_chat/baseline_logs/*
 fcquic_chat/tquic_logs/*
 
 fcquic_relay/logs/*
+evaluations/grid5000/relay_eval_gre/generated_frr_configs/*
