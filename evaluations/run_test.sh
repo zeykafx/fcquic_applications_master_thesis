@@ -6,7 +6,7 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "Arguments:"
     echo "  TEST_DIR_NAME    Test dir name (default: receivers)"
     echo "  TOPO_CONF_NAME   Topo config name (default: receivers_0%_loss)"
-    echo "  USE_POISSON      Use Poisson distribution: true/false (default: false)"
+    echo "  USE_POISSON      Use Poisson distribution: true/false (default: true)"
     echo ""
     echo "Examples:"
     echo "  $0"
@@ -25,7 +25,7 @@ fi
 # defaults
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers_0%_loss"
-USE_POISSON="false"
+USE_POISSON="true"
 TAGS_TO_USE=""
 
 if [ $# -ge 1 ] && [ -n "$1" ]; then

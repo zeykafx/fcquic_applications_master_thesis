@@ -48,7 +48,7 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
-def main(res_path, out_path, clip):
+def main(res_path, out_path, clip, inset=False):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
@@ -84,6 +84,7 @@ def main(res_path, out_path, clip):
             poisson_str,
             is_poisson,
             data_size,
+            inset,
         )
 
     plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_mbps)
@@ -318,8 +319,59 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
         plt.close()
 
 
+def _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=True):
+    if len(df_fcquic) > 0:
+        ax.ecdf(
+            (df_fcquic["y_LATENCY"] / 1000),
+            label="FC-QUIC" if add_labels else None,
+            color=FCQUIC_COLOR,
+            linestyle=FCQUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_fcquic_fec) > 0:
+        ax.ecdf(
+            (df_fcquic_fec["y_LATENCY"] / 1000),
+            label="FC-QUIC with FEC" if add_labels else None,
+            color=FCQUIC_FEC_COLOR,
+            linestyle=FCQUIC_FEC_LINESTYLE,
+            lw=LINEWIDTH + 0.2,
+        )
+    if len(df_baseline) > 0:
+        ax.ecdf(
+            (df_baseline["y_LATENCY"] / 1000),
+            label="Baseline QUIC" if add_labels else None,
+            color=BASELINE_QUIC_COLOR,
+            linestyle=BASELINE_QUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp) > 0:
+        ax.ecdf(
+            (df_tcp["y_LATENCY"] / 1000),
+            label="Baseline TCP (+TLS)" if add_labels else None,
+            color=BASELINE_TCP_COLOR,
+            linestyle=BASELINE_TCP_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp_no_tls) > 0:
+        ax.ecdf(
+            (df_tcp_no_tls["y_LATENCY"] / 1000),
+            label="Baseline TCP (NO TLS)" if add_labels else None,
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tokio_quiche) > 0:
+        ax.ecdf(
+            (df_tokio_quiche["y_LATENCY"] / 1000),
+            label="Baseline Tokio-quiche" if add_labels else None,
+            color=TOKIO_QUICHE_COLOR,
+            linestyle=TOKIO_QUICHE_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+
+
 def process_and_plot(
-    data_df, out_path, clip, topo_name, poisson_str, is_poisson, data_size
+    data_df, out_path, clip, topo_name, poisson_str, is_poisson, data_size, inset=False
 ):
     # remove outliers
     # NOTE: is this okay to do???
@@ -370,7 +422,7 @@ def process_and_plot(
                 for run_idx, count in run_counts.items():
                     print(f"  Run {run_idx}: {count} samples")
 
-    if len_fcquic < 0.5 * len_baseline:
+    if len_fcquic < 0.5 * len_tcp:
         print(
             "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
         )
@@ -381,57 +433,11 @@ def process_and_plot(
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
-    plt.figure(figsize=(8, 6))
+    fig = plt.figure(figsize=(8, 6))
     latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
 
-    if len(df_fcquic) > 0:
-        plt.ecdf(
-            (df_fcquic["y_LATENCY"] / 1000),
-            label="FC-QUIC",
-            color=FCQUIC_COLOR,
-            linestyle=FCQUIC_LINESTYLE,
-            lw=LINEWIDTH,
-        )
-    if len(df_fcquic_fec) > 0:
-        plt.ecdf(
-            (df_fcquic_fec["y_LATENCY"] / 1000),
-            label="FC-QUIC with FEC",
-            color=FCQUIC_FEC_COLOR,
-            linestyle=FCQUIC_FEC_LINESTYLE,
-            lw=LINEWIDTH + 0.2,
-        )
-    if len(df_baseline) > 0:
-        plt.ecdf(
-            (df_baseline["y_LATENCY"] / 1000),
-            label="Baseline QUIC",
-            color=BASELINE_QUIC_COLOR,
-            linestyle=BASELINE_QUIC_LINESTYLE,
-            lw=LINEWIDTH,
-        )
-    if len(df_tcp) > 0:
-        plt.ecdf(
-            (df_tcp["y_LATENCY"] / 1000),
-            label="Baseline TCP (+TLS)",
-            color=BASELINE_TCP_COLOR,
-            linestyle=BASELINE_TCP_LINESTYLE,
-            lw=LINEWIDTH,
-        )
-    if len(df_tcp_no_tls) > 0:
-        plt.ecdf(
-            (df_tcp_no_tls["y_LATENCY"] / 1000),
-            label="Baseline TCP (NO TLS)",
-            color=BASELINE_TCP_NO_TLS_COLOR,
-            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
-            lw=LINEWIDTH,
-        )
-    if len(df_tokio_quiche) > 0:
-        plt.ecdf(
-            (df_tokio_quiche["y_LATENCY"] / 1000),
-            label="Baseline Tokio-quiche",
-            color=TOKIO_QUICHE_COLOR,
-            linestyle=TOKIO_QUICHE_LINESTYLE,
-            lw=LINEWIDTH,
-        )
+    ax = plt.gca()
+    _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=True)
 
     plt.ylabel("Probability of occurence", fontsize=12)
 
@@ -449,10 +455,44 @@ def process_and_plot(
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    plt.tight_layout()
+    # Zoomed inset, placed with AXES-relative coords so it always sits
+    # cleanly in the bottom-right corner of the plot area.
+    if inset:
+        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
+        axins.set_facecolor("white")
+        for spine in axins.spines.values():
+            spine.set_edgecolor("black")
+            spine.set_linewidth(1.0)
+
+        _plot_ecdfs(axins, df_fcquic, df_fcquic_fec, df_baseline,
+                    df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=False)
+
+        all_latencies = pd.concat([
+            df_fcquic["y_LATENCY"], df_fcquic_fec["y_LATENCY"],
+            df_baseline["y_LATENCY"], df_tcp["y_LATENCY"],
+            df_tcp_no_tls["y_LATENCY"], df_tokio_quiche["y_LATENCY"],
+        ]) / 1000
+
+        # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
+        # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
+        # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
+        x_min = float(all_latencies.quantile(0.50))
+        x_max = float(all_latencies.max())
+        axins.set_xlim(x_min, x_max)
+        axins.set_ylim(0.5)
+
+        axins.tick_params(labelsize=8)
+        axins.grid(True, alpha=0.3)
+
+        ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    else:
+        ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
+
+    fig.tight_layout()
 
     clip_str = "_clipped" if clip else ""
     data_size_str = f"_datasize_{data_size}" if data_size is not None else ""
+    inset_str = "_inset" if inset else ""
     if clip:
         out_path = f"{out_path}/clipped"
     # plt.savefig(
@@ -461,7 +501,7 @@ def process_and_plot(
     #     bbox_inches="tight",
     # )
     plt.savefig(
-        f"{out_path}/cdf_{topo_name}_{poisson_str}{data_size_str}{clip_str}.svg",
+        f"{out_path}/cdf_{topo_name}_{poisson_str}{data_size_str}{clip_str}{inset_str}.svg",
         bbox_inches="tight",
     )
 
@@ -474,6 +514,11 @@ if __name__ == "__main__":
         "--clip",
         action="store_true",
     )
+    parser.add_argument(
+        "--inset",
+        action="store_true",
+        help="add a zoomed in inset for the cdfs",
+    )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path, args.clip)
+    main(args.file_path, args.out_path, args.clip, args.inset)
