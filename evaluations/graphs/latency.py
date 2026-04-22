@@ -454,8 +454,8 @@ def process_and_plot(
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    # Zoomed inset, placed with AXES-relative coords so it always sits
-    # cleanly in the bottom-right corner of the plot area.
+    
+    # zoomed in inset
     if inset:
         axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
         axins.set_facecolor("white")

@@ -136,7 +136,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
             plt.plot(
                 x,
                 no_relay_grouped[mean_or_median],
-                label="FC-QUIC",
+                label="No Relay",
                 color=NO_RELAY_COLOR,
                 linestyle=NO_RELAY_LINESTYLE,
                 marker=NO_RELAY_MARKER,
@@ -156,7 +156,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
             plt.plot(
                 x,
                 fcquic_relay_grouped[mean_or_median],
-                label="FC-QUIC with FEC",
+                label="FCQUIC Relay",
                 color=FCQUIC_RELAY_COLOR,
                 linestyle=FCQUIC_RELAY_LINESTYLE,
                 marker=FCQUIC_RELAY_MARKER,
@@ -176,7 +176,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
             plt.plot(
                 x,
                 app_relay_grouped[mean_or_median],
-                label="Baseline QUIC",
+                label="Application relay",
                 color=APP_RELAY_COLOR,
                 linestyle=APP_RELAY_LINESTYLE,
                 marker=APP_RELAY_MARKER,
@@ -197,7 +197,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
             f"{mean_or_median.capitalize()} latency vs additional data size",
             fontsize=14,
         )
-        plt.ylim(bottom=0)
+        # plt.ylim(bottom=0)
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
@@ -295,8 +295,7 @@ def process_and_plot(
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    # Zoomed inset, placed with AXES-relative coords so it always sits
-    # cleanly in the bottom-right corner of the plot area.
+    # zoomed inset
     if inset:
         axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
         axins.set_facecolor("white")
