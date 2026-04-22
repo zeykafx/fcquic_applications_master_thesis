@@ -6,7 +6,7 @@
 FCQUIC relay eval
 
 %config
-n_runs=1
+n_runs=3
 n_supplementary_runs=0
 timeout=3600
 result_append={LATENCY}

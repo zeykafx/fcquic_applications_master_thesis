@@ -41,12 +41,12 @@ latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=10
+latency:LAMBDA=100
 // # latency:LAMBDA=0.100
 latency:TEST_LENGTH=11
 latency:FALLBACK_DELAY=400
-// # latency:ADDITIONAL_DATA_SIZE=1100
-latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 data:NUM_CLIENTS=75

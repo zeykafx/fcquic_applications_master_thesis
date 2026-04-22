@@ -307,7 +307,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
             f"{mean_or_median.capitalize()} latency vs additional data size ({poisson_str}): {topo_name.replace('%', 'per')}",
             fontsize=14,
         )
-        plt.ylim(bottom=0)
+        # plt.ylim(bottom=0)
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()

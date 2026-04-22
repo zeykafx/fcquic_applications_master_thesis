@@ -17,9 +17,6 @@ MEDIUM_TOPOLOGIES=(
 for topo in "${MEDIUM_TOPOLOGIES[@]}"; do
     echo "Running tests for topo ${topo}"
 
-    echo "Running with uniform distribution..."
-    ./run_test.sh latency "${topo}" false
-
     echo "Running with Poisson distribution..."
     ./run_test.sh latency "${topo}" true
 
