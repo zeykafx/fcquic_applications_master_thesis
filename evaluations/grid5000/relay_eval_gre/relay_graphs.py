@@ -145,7 +145,7 @@ def sliding_window_rates(times_ms, sizes_bytes, window_ms):
 def plot_ack_rate_graphs(ack_rates_path, out_path, name):
 
     ack_files = {
-        "none": f"{ack_rates_path}/none.csv",
+        "none": f"{ack_rates_path}none.csv",
         "RELAY": f"{ack_rates_path}RELAY.csv",
         "APP_RELAY": f"{ack_rates_path}APP_RELAY.csv",
     }
@@ -288,9 +288,7 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
         return
 
     if data_df["ADDITIONAL_DATA_SIZE"].nunique() <= 1:
-        print(
-            "only one additional data size, skipping mean/median plot."
-        )
+        print("only one additional data size, skipping mean/median plot.")
         return
 
     # remove outliers
