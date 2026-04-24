@@ -14,7 +14,6 @@ interface lo
     ip address {{ lo_address }}/32
     ip igmp
     ip pim
-    ! ip ospf area 0
     ip igmp immediate-leave
 !
 interface {{ prod_iface }}
@@ -22,7 +21,6 @@ interface {{ prod_iface }}
     ip pim
     ip igmp
     ip igmp immediate-leave
-    ! ip ospf area 0 ! Don't use this line when using the network xyz commands otherwise those don't apply and the prefix list doesn't either
     ip ospf passive
 !
 {% for tunnel in tunnels %}
@@ -31,7 +29,6 @@ interface {{ tunnel.iface }}
     ip pim
     ip igmp
     ip igmp immediate-leave
-    ! ip ospf area 0
     ip ospf network point-to-point
     tunnel source {{ prod_iface }}
 !

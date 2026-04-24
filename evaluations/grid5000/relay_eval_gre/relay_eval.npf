@@ -6,31 +6,32 @@
 FCQUIC relay eval
 
 %config
-n_runs=3
+n_runs=1
 n_supplementary_runs=0
-timeout=3600
+timeout=40
 result_append={LATENCY}
 
 %late_variables
-CONNECTION_SLEEP_LENGTH=1
+CONNECTION_SLEEP_LENGTH=0
 BIN_LOG_LEVEL="info"
 tcpdump_dir="/home/cdetry/"
 client_log_dir="/home/cdetry/logs/client"
 server_log_dir="/home/cdetry/logs/server"
 relay_log_dir="/home/cdetry/logs/relay"
-READY_SLEEP=1
+READY_SLEEP_RELAY=1
+READY_SLEEP_CLIENTS=3
 
 %variables
 // # ------------- Base test: No relay vs fcquic relay vs app relay -------------
-LAMBDA=100
+LAMBDA=10
 TEST_LENGTH=20
 ADDITIONAL_DATA_SIZE=1100
-RELAY_VERSION={"RELAY","APP_RELAY","none"}
+// RELAY_VERSION={"RELAY","APP_RELAY","none"}
+RELAY_VERSION={"none"}
 // # ------------- additional data test -------------
-data:LAMBDA=100
-data:TEST_LENGTH=20
+data:LAMBDA=50
 data:ADDITIONAL_DATA_SIZE={1100,2200}
-data:RELAY_VERSION={"RELAY","none"}
+data:RELAY_VERSION={"RELAY","APP_RELAY","none"}
 // # ------------- Other vars -------------
 FALLBACK_DELAY=1000
 POISSON="true"
@@ -43,39 +44,27 @@ SERVER_IP=""
 CLIENT_IPS="empty"
 RELAY_IPS="empty"
 SERVER_PROD_IFACE="empty"
+CLUSTER_NAMES="empty"
+CLUSTER_SUBNETS="empty"
 TCPDUMP=1
-USE_DOCKER="false"
 SERVER_BIN_PATH="/home/cdetry/bin/server"
 CLIENT_BIN_PATH="/home/cdetry/bin/client"
 RELAY_BIN_PATH="/home/cdetry/bin/fcquic_relay"
 
-// # %init@server
-// # sudo sysctl -w net.core.rmem_max=26214400
-// # sudo sysctl -w net.core.rmem_default=26214400
-
-// # %init@client
-// # sudo sysctl -w net.core.rmem_max=26214400
-// # sudo sysctl -w net.core.rmem_default=26214400
-
-
+%import@server cpuload TEST_LENGTH=$TEST_LENGTH
 
 // ------------------------ SERVER ------------------------
 %script@server
 
+
 echo "Starting server with IP $SERVER_IP"
 
-if [ "$USE_DOCKER" = "true" ]; then
-    SERVER_IMAGE="corentindetry/fcquic_server"
-    SERVER_EXEC="docker run --network=host \
-            --privileged \
-            -v ${WORKDIR}:${WORKDIR} \
-            -e RUST_LOG_STYLE=always \
-            -e RUST_BACKTRACE=full \
-            -e RUST_LOG=${BIN_LOG_LEVEL} \
-            ${SERVER_IMAGE}"
-else
-    SERVER_EXEC="env RUST_LOG_STYLE=always RUST_BACKTRACE=full QLOGDIR=${server_log_dir} RUST_LOG=${BIN_LOG_LEVEL} ${SERVER_BIN_PATH}"
-fi
+pkill server || true
+
+SERVER_QLOG_DIR=${server_log_dir}/${RELAY_VERSION}
+mkdir -p $SERVER_QLOG_DIR
+
+SERVER_EXEC="env QLOGDIR=${SERVER_QLOG_DIR} RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${SERVER_BIN_PATH}"
 
 TEST_LENGTH_SERVER=$(echo "5+${TEST_LENGTH}" | bc)
 
@@ -88,12 +77,15 @@ echo "Server running!"
 sleep $TEST_LENGTH_SERVER
 
 // ------------------------ RELAY ------------------------
-%script@relay 
+%script@relay
+
+pkill app_relay || true
+pkill fcquic_relay || true
 
 TEST_LENGTH_RELAY=$(echo "5+${TEST_LENGTH}" | bc)
 
 // give time to the server
-sleep "${READY_SLEEP}"
+sleep "${READY_SLEEP_RELAY}"
 
 if [ "${RELAY_VERSION}" = "none" ]; then
     echo "not testing with relays"
@@ -122,6 +114,7 @@ else
         --mc-src-addr ${CURRENT_RELAY_IP}:4443 \
         --cert-path /home/cdetry \
         --test-mode --flexicast \
+        --length ${TEST_LENGTH_RELAY} \
         --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast \
         --fec-scheduler noredundancy \
         --cc-algorithm ${CC_ALGO} --fc-cwnd ${CC_ALGO} \
@@ -137,26 +130,16 @@ fi
 
 echo "Starting clients on node ${NPF_NODE_ID} (${NUM_NS_PER_CLIENT} namespaces)"
 
+// pkill client || true
 
-pids=()
-
-if [ "$USE_DOCKER" = "true" ]; then
-    CLIENT_IMAGE="corentindetry/fcquic_client"
-    base_exec="docker run --network=host \
-            --privileged \
-            -v ${WORKDIR}:${WORKDIR} \
-            -e RUST_LOG_STYLE=always \
-            -e RUST_BACKTRACE=full \
-            -e RUST_LOG=${BIN_LOG_LEVEL} \
-            ${CLIENT_IMAGE}"
-else
-    base_exec="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${CLIENT_BIN_PATH}"
-fi
+// base_exec="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} ${CLIENT_BIN_PATH}"
+base_exec="env RUST_LOG_STYLE=always RUST_BACKTRACE=full RUST_LOG=debug ${CLIENT_BIN_PATH}"
 
 
 // wait for server and relay to be on and read
-sleep 2
+sleep ${READY_SLEEP_CLIENTS} 
 
+pids=()
 // # loop over each namespace on this node
 for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
 
@@ -165,9 +148,6 @@ for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
     GLOBAL_IDX=$(echo "${NPF_NODE_ID}*${NUM_NS_PER_CLIENT}" + ${NS_IDX} | bc)
     CLIENT_ID=$(echo "${GLOBAL_IDX} +1" | bc)
     NS_NAME="client-${NS_IDX}"
-
-    # CLIENT_ID=${NPF_NODE_ID}
-    # NS_NAME="client-${CLIENT_ID}"
 
     CLIENT_IP=$(ip netns exec $NS_NAME ip -f inet addr show | grep inet | tail -1 | awk '{print $2}' | cut -d'/' -f1)
 
@@ -206,10 +186,11 @@ for NS_IDX in $(seq $(echo "${NUM_NS_PER_CLIENT} - 1" | bc) -1 0); do
     ip netns exec $NS_NAME $base_exec --server-ip ${SERVER_IP} --port 4433 ${CLEAN_RELAY_IPS} \
     -l $CLIENT_IP --flexicast ${CLIENT_ARGS} < /dev/null 2> $client_log_dir/client_${CLIENT_ID}.log &
 
-    pids[${CLIENT_ID}]=$!
+    pids+=($!)
 done
 
 // # wait for all clients on this node to finish
-for pid in ${pids[*]}; do
+for pid in "${pids[@]}"; do
     wait $pid
 done
+

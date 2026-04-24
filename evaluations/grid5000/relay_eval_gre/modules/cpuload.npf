@@ -1,0 +1,69 @@
+%info
+Monitor CPU load by reading /proc/stat in a loop.
+
+Outputs time-series results TLOAD-<timestamp>-RESULT-CPU-<id> with per-core
+utilization percentage. Use variables CPUMIN/CPUMAX to select a range of cores,
+CPUTHRESH to only start reporting after utilization exceeds a threshold,
+and CPUSUM=1 to aggregate all cores into a single CPUSUM result.
+
+Usage:
+  %import@server cpuload CPUMIN=0 CPUMAX=16
+
+%script
+unbuffer python3 cpuload.py "${NPF_ROLE}"
+
+%variables
+CPUMIN=0
+CPUMAX=128
+CPUTHRESH=1
+CPUSUM=0
+TEST_LENGTH=20
+
+%file cpuload.py
+# REMOVED PARSE DEPENDENCY: pip install requires a venv or requires --break-system-packates on debian13 (the distro used by g5k nodes)
+from time import sleep,time
+from collections import defaultdict
+import sys
+
+last_idle = defaultdict(int)
+last_total = defaultdict(int)
+thresh = False
+name=sys.argv[1]
+# ADDITION:
+test_length=int($TEST_LENGTH)
+start_time=time()
+
+while time() - start_time < test_length:
+    csum=0
+    t = time()
+    do_thresh = False
+    with open('/proc/stat') as f:
+      f.readline()
+      while True:
+        fields = f.readline().strip().split()
+        # MODIFICATION START ----------------
+        if not fields or not fields[0].startswith("cpu"):
+            break
+        matches = fields[:]
+        cpuid = int(matches[0][3:])
+        # MODIFICATIO END -------------------
+        fields = [float(column) for column in fields[1:]]
+        idle, total = fields[3], sum(fields)
+        idle_delta, total_delta = idle - last_idle[cpuid], total - last_total[cpuid]
+        last_idle[cpuid], last_total[cpuid] = idle, total
+        utilisation = 100.0 * (1.0 - idle_delta / total_delta)
+        if cpuid < $CPUMAX and cpuid >= $CPUMIN:
+            if $CPUTHRESH > 0:
+                if utilisation > $CPUTHRESH and not thresh:
+                    do_thresh=True
+                if not thresh:
+                    continue
+            if $CPUSUM:
+                csum+=utilisation
+            else:
+                print('TLOAD-%f-RESULT-CPU-%d %f' % (t,cpuid,utilisation))
+    if do_thresh:
+        thresh = True
+    if $CPUSUM:
+        print('TLOAD-%f-RESULT-%s-CPUSUM %f' % (t,name,csum))
+    sleep(1)

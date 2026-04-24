@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import os
+from pathlib import Path
 import re
 
 import matplotlib.pyplot as plt
@@ -9,7 +11,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from style import (
- 
     CONFIDENCE_BAND_OPACITY,
     FCQUIC_RELAY_COLOR,
     FCQUIC_RELAY_LINESTYLE,
@@ -40,7 +41,8 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
-def main(res_path, out_path, name, inset=False):
+def main(res_path, out_path, name, inset, ack_rate_path, cpu_csv_path):
+
     data_df = pd.read_csv(res_path)
 
     # clean up the messy quotes that npf adds
@@ -67,6 +69,8 @@ def main(res_path, out_path, name, inset=False):
         )
 
     plot_mean_median_vs_data_size(data_df, out_path, name)
+    plot_ack_rate_graphs(ack_rate_path, out_path, name)
+    plot_cpu_load(cpu_csv_path, out_path, name)
 
 
 def get_median_std_grouped_for_df(df):
@@ -95,9 +99,198 @@ def get_mean_std_grouped_for_df(df):
     return grouped
 
 
+def read_csv(path):
+    times, sizes = [], []
+    try:
+        with open(path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                times.append(float(row["time"]))
+                sizes.append(int(row["length"]))
+    except Exception as e:
+        print(e)
+    return times, sizes
+
+
+def sliding_window_rates(times_ms, sizes_bytes, window_ms):
+    # compute the peak byte count with a sliding window
+    if not times_ms:
+        return []
+
+    # merge the times and sizes together then sort them at once
+    events = sorted(zip(times_ms, sizes_bytes))
+    rates = []
+
+    left = 0
+    window_sum = 0
+    for right in range(len(events)):
+        window_sum += events[right][1]
+
+        left_most_time = events[left][0]
+        right_most_time = events[right][0]
+
+        # if the window is too large in ms, we remove the left most value and go right by one
+        while right_most_time - left_most_time >= window_ms and left < right:
+            window_sum -= events[left][1]
+            left += 1
+
+        # record the rate for this window
+        width = events[right][0] - events[left][0]
+        if width > 0:
+            rates.append(window_sum / (width / 1000.0) / 1e6)  # MB per second
+
+    return rates
+
+
+def plot_ack_rate_graphs(ack_rates_path, out_path, name):
+
+    ack_files = {
+        "none": f"{ack_rates_path}/none.csv",
+        "RELAY": f"{ack_rates_path}RELAY.csv",
+        "APP_RELAY": f"{ack_rates_path}APP_RELAY.csv",
+    }
+
+    WINDOW_MS = 100
+    labels = {
+        "none": "No Relay",
+        "RELAY": "FCQUIC Relay",
+        "APP_RELAY": "Application Relay",
+    }
+    palette = {
+        "none": NO_RELAY_COLOR,
+        "RELAY": FCQUIC_RELAY_COLOR,
+        "APP_RELAY": APP_RELAY_COLOR,
+    }
+
+    records = []
+    for label, path in ack_files.items():
+        times, sizes = read_csv(path)
+
+        # compute the rates over windows of a 100ms
+        rates = sliding_window_rates(times, sizes, WINDOW_MS)
+        mean_rate = np.mean(rates)
+        std_rate = np.std(rates)
+
+        records.append(
+            {
+                "relay_type": labels[label],
+                "mean_ack_rate_mbps": mean_rate,
+                "std_ack_rate": std_rate,
+            }
+        )
+
+    df = pd.DataFrame(records)
+
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
+    bars = ax.bar(
+        df["relay_type"],
+        df["mean_ack_rate_mbps"],
+        yerr=df["std_ack_rate"],
+        color=palette.values(),
+        width=0.5,
+        edgecolor="black",
+        capsize=5,
+    )
+
+    labels = [
+        f"{m:.3f} +- {s:.2f}"
+        for m, s in zip(df["mean_ack_rate_mbps"], df["std_ack_rate"])
+    ]
+    ax.bar_label(bars, labels=labels, padding=5, fontsize=14)
+
+    ax.set_xlabel("Relay implementation", fontsize=14)
+    ax.set_ylabel(
+        f"Mean ACK rate (MB/s) over {WINDOW_MS}ms sliding windows", fontsize=13
+    )
+    ax.set_title("Mean ACK rate by relay implementation", fontsize=13)
+    ax.set_ylim(0)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(
+        f"{out_path}/ack_rates_{name}.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def plot_cpu_load(cpu_csv_path, out_path, name):
+    cpu_df = pd.read_csv(cpu_csv_path)
+    if cpu_df.empty:
+        print("no CPU data, skipping cpu plot")
+        return
+
+    # select the rows with cpu_id = -1 (they contain the mean of the cpu usage for that time step)
+    cpu_df = cpu_df[cpu_df["cpu_id"] == -1]
+
+    # clean up the messy quotes that npf adds
+    cpu_df["RELAY_VERSION"] = cpu_df["RELAY_VERSION"].str.replace('"', "")
+
+    order = ["none", "RELAY", "APP_RELAY"]
+    labels = {
+        "none": "No Relay",
+        "RELAY": "FCQUIC Relay",
+        "APP_RELAY": "Application Relay",
+    }
+    palette = {
+        "none": NO_RELAY_COLOR,
+        "RELAY": FCQUIC_RELAY_COLOR,
+        "APP_RELAY": APP_RELAY_COLOR,
+    }
+
+    # compute mean and std of utilization percentage grouped by RELAY_VERSION
+    grouped = (
+        cpu_df[["RELAY_VERSION", "utilization_percentage"]]
+        .groupby("RELAY_VERSION")["utilization_percentage"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+
+    grouped["RELAY_VERSION"] = pd.Categorical(
+        grouped["RELAY_VERSION"], categories=order, ordered=True
+    )
+    grouped = grouped.sort_values("RELAY_VERSION")
+
+    grouped["relay_type"] = grouped["RELAY_VERSION"].map(labels)
+
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
+    bars = ax.bar(
+        grouped["relay_type"],
+        grouped["mean"],
+        yerr=grouped["std"],
+        color=palette.values(),
+        width=0.5,
+        edgecolor="black",
+        capsize=5,
+    )
+
+    labels = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])]
+    ax.bar_label(bars, labels=labels, padding=5, fontsize=14)
+
+    ax.set_xlabel("Relay implementation", fontsize=12)
+    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=12)
+    ax.set_title(
+        "FCQUIC Source CPU Load with different relay implementations", fontsize=14
+    )
+    # ax.set_ylim(0, 100)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(f"{out_path}/cpu_load_{name}.svg", bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_mean_median_vs_data_size(data_df, out_path, name):
     if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
         print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
+        return
+
+    if data_df["ADDITIONAL_DATA_SIZE"].nunique() <= 1:
+        print(
+            "only one additional data size, skipping mean/median plot."
+        )
         return
 
     # remove outliers
@@ -125,7 +318,6 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
             no_relay_grouped = get_median_std_grouped_for_df(df_no_relay)
             fcquic_relay_grouped = get_median_std_grouped_for_df(df_fcquic_relay)
             app_relay_grouped = get_median_std_grouped_for_df(df_app_relay)
- 
 
         sns.set_style("whitegrid")
         plt.figure(figsize=(8, 6))
@@ -233,10 +425,9 @@ def _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
             linestyle=APP_RELAY_LINESTYLE,
             lw=LINEWIDTH,
         )
-   
-def process_and_plot(
-    data_df, out_path, name, data_size, inset=False
-):
+
+
+def process_and_plot(data_df, out_path, name, data_size, inset=False):
     # remove outliers
     q = data_df["y_LATENCY"].quantile(0.995)
     print(f"Outlier threshold: {q}")
@@ -268,19 +459,17 @@ def process_and_plot(
                 for run_idx, count in run_counts.items():
                     print(f"  Run {run_idx}: {count} samples")
 
-    global_len = min(
-       len_app_relay, len_no_relay, len_fcquic_relay 
-    )
+    global_len = min(len_app_relay, len_no_relay, len_fcquic_relay)
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
-    fig = plt.figure(figsize=(8, 6))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+    fig = plt.figure(figsize=(9, 8))
+    latexify(nb_subplots_line=1, fig_height=9, fig_width=8)
 
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
-    plt.ylabel("Probability of occurence", fontsize=13)
+    plt.ylabel("Probability of occurence", fontsize=14)
 
     # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
@@ -288,16 +477,16 @@ def process_and_plot(
         f"Cumulative distribution of latency, {data_size_str}",
         fontsize=14,
     )
-    plt.xlabel("Latency (ms)", fontsize=13)
+    plt.xlabel("Latency (ms)", fontsize=14)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
-   
+
     plt.legend()
     plt.grid(True, alpha=0.3)
 
     # zoomed inset
     if inset:
-        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
+        axins = ax.inset_axes([0.62, 0.05, 0.36, 0.25])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")
@@ -305,18 +494,24 @@ def process_and_plot(
 
         _plot_ecdfs(axins, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=False)
 
-        all_latencies = pd.concat([
-            df_no_relay["y_LATENCY"], df_fcquic_relay["y_LATENCY"],
-            df_app_relay["y_LATENCY"],
-        ]) / 1000
+        all_latencies = (
+            pd.concat(
+                [
+                    df_no_relay["y_LATENCY"],
+                    df_fcquic_relay["y_LATENCY"],
+                    df_app_relay["y_LATENCY"],
+                ]
+            )
+            / 1000
+        )
 
         # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
         # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
         # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
-        x_min = float(all_latencies.quantile(0.90))
+        x_min = float(all_latencies.quantile(0.95))
         x_max = float(all_latencies.max())
         axins.set_xlim(x_min, x_max)
-        axins.set_ylim(0.9)
+        axins.set_ylim(0.95, 1.001)
 
         axins.tick_params(labelsize=8)
         axins.grid(True, alpha=0.3)
@@ -329,7 +524,7 @@ def process_and_plot(
 
     data_size_str = f"_datasize_{data_size}" if data_size is not None else ""
     inset_str = "_inset" if inset else ""
- 
+
     plt.savefig(
         f"{out_path}/cdf_{name}{data_size_str}{inset_str}.svg",
         bbox_inches="tight",
@@ -340,7 +535,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("plots")
     parser.add_argument("file_path", type=file_path)
     parser.add_argument("out_path", type=dir_path)
-    parser.add_argument("name", type=str) 
+    parser.add_argument("name", type=str)
+
+    parser.add_argument("ack_rate_path", type=dir_path)
+    parser.add_argument("cpu_csv_path", type=file_path)
+
     parser.add_argument(
         "--inset",
         action="store_true",
@@ -348,4 +547,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path, args.name, args.inset)
+    main(
+        args.file_path,
+        args.out_path,
+        args.name,
+        args.inset,
+        args.ack_rate_path,
+        args.cpu_csv_path,
+    )
