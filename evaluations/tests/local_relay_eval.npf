@@ -12,13 +12,12 @@ timeout=40
 result_append={LATENCY}
 
 %late_variables
-CONNECTION_SLEEP_LENGTH=1
+CONNECTION_SLEEP_LENGTH=2
 BIN_LOG_LEVEL="info"
-client_log_dir="/home/cdetry/logs/client"
-server_log_dir="/home/cdetry/logs/server"
-relay_log_dir="/home/cdetry/logs/relay"
+client_log_dir="/home/corentin/fcquic_applications_master_thesis/evaluations/tests/local_relay_eval/logs/client"
+server_log_dir="/home/corentin/fcquic_applications_master_thesis/evaluations/tests/local_relay_eval/logs/server"
+relay_log_dir="/home/corentin/fcquic_applications_master_thesis/evaluations/tests/local_relay_eval/logs/relay"
 READY_SLEEP_RELAY=1
-READY_SLEEP_CLIENTS=3
 
 %variables
 // # ------------- Base test: No relay vs fcquic relay vs app relay -------------
@@ -61,13 +60,12 @@ mkdir -p $WORKDIR/evaluations/tests/local_relay_eval/bin
 
 cd fcquic_relay
 echo "Building project"
+$CARGO_PATH build --release > /dev/null
 
-RUSTFLAGS="-C target-cpu=native" $CARGO_PATH build --release > /dev/null
-
-cp ./target/release/tcp-server $WORKDIR/evaluations/tests/local_relay_eval/bin/server
-cp ./target/release/tcp-client $WORKDIR/evaluations/tests/local_relay_eval/bin/client
-cp ./target/release/server $WORKDIR/evaluations/tests/local_relay_eval/bin/fcquic_relay
-cp ./target/release/client $WORKDIR/evaluations/tests/local_relay_eval/bin/app_relay
+cp ./target/release/server $WORKDIR/evaluations/tests/local_relay_eval/bin/server
+cp ./target/release/client $WORKDIR/evaluations/tests/local_relay_eval/bin/client
+cp ./target/release/fcquic_relay $WORKDIR/evaluations/tests/local_relay_eval/bin/fcquic_relay
+cp ./target/release/app_relay $WORKDIR/evaluations/tests/local_relay_eval/bin/app_relay
 echo "Done building project"
 
 echo "copying certificates"
@@ -115,14 +113,14 @@ else
 
     CURRENT_RELAY_IP=$(ip -f inet addr show | grep inet | tail -1 | awk '{print $2}' | cut -d'/' -f1)
 
-    echo "Starting relay ${NPF_NODE_ID} at ${CURRENT_RELAY_IP}, connecting to ${SERVER_IP}"
+    echo "Starting relay ${NPF_NODE_ID} at ${CURRENT_RELAY_IP}"
 
     if [ "${RELAY_VERSION}" = "RELAY" ]; then
         echo "Using fcquic relay"
-        RELAY_BIN_PATH="/home/cdetry/bin/fcquic_relay"
+        RELAY_BIN_PATH="WORKDIR/evaluations/tests/local_relay_eval/bin/fcquic_relay"
     elif [ "${RELAY_VERSION}" = "APP_RELAY" ]; then
         echo "Using app relay"
-        RELAY_BIN_PATH="/home/cdetry/bin/app_relay"
+        RELAY_BIN_PATH="WORKDIR/evaluations/tests/local_relay_eval/bin/app_relay"
     else
         echo "unknown RELAY_VERSION=${RELAY_VERSION}" >&2
         exit 1
@@ -146,7 +144,7 @@ fi
 
 // ------------------------ CLIENTS ------------------------
 // # clients connect to the relay in their cluster when USE_RELAY=true, otherwise directly to the server
-%script@client delay=2
+%script@client delay=1
 
 echo "Starting clients on node ${NPF_NODE_ID} (${NUM_NS_PER_CLIENT} namespaces)"
 

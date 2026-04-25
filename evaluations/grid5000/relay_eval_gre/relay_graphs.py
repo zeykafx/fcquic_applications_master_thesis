@@ -198,13 +198,13 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
         f"{m:.3f} +- {s:.2f}"
         for m, s in zip(df["mean_ack_rate_mbps"], df["std_ack_rate"])
     ]
-    ax.bar_label(bars, labels=labels, padding=5, fontsize=14)
+    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
 
-    ax.set_xlabel("Relay implementation", fontsize=14)
+    ax.set_xlabel("Relay implementation", fontsize=15)
     ax.set_ylabel(
-        f"Mean ACK rate (MB/s) over {WINDOW_MS}ms sliding windows", fontsize=13
+        f"Mean ACK rate (MB/s) over {WINDOW_MS}ms sliding windows", fontsize=15
     )
-    ax.set_title("Mean ACK rate by relay implementation", fontsize=13)
+    ax.set_title("Mean ACK rate by relay implementation", fontsize=15)
     ax.set_ylim(0)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -268,12 +268,12 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
     )
 
     labels = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])]
-    ax.bar_label(bars, labels=labels, padding=5, fontsize=14)
+    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
 
-    ax.set_xlabel("Relay implementation", fontsize=12)
-    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=12)
+    ax.set_xlabel("Relay implementation", fontsize=13)
+    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=13)
     ax.set_title(
-        "FCQUIC Source CPU Load with different relay implementations", fontsize=14
+        "FCQUIC Source CPU Load with different relay implementations", fontsize=15
     )
     # ax.set_ylim(0, 100)
     ax.grid(True, alpha=0.3)
@@ -381,11 +381,11 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
                 alpha=CONFIDENCE_BAND_OPACITY,
             )
 
-        plt.xlabel("Additional data size (bytes)", fontsize=12)
-        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12)
+        plt.xlabel("Additional data size (bytes)", fontsize=13)
+        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=13)
         plt.title(
             f"{mean_or_median.capitalize()} latency vs additional data size",
-            fontsize=14,
+            fontsize=15,
         )
         # plt.ylim(bottom=0)
         plt.legend()
@@ -467,15 +467,15 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
-    plt.ylabel("Probability of occurence", fontsize=14)
+    plt.ylabel("Probability of occurence", fontsize=15)
 
     # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
     plt.title(
         f"Cumulative distribution of latency, {data_size_str}",
-        fontsize=14,
+        fontsize=15,
     )
-    plt.xlabel("Latency (ms)", fontsize=14)
+    plt.xlabel("Latency (ms)", fontsize=15)
     # plt.xlim(left=0)
     plt.ylim(0, 1)
 
