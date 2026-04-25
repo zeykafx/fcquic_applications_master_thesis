@@ -1,0 +1,56 @@
+topology:
+  defaults:
+    routers:
+      multicast: True
+      rp_id: 1
+      use_asm: False
+      asm_prefix: "224.0.0.0/4"
+
+    links:
+      bandwidth: "10Gbit"
+      loss: "0%"
+      burst: "0%"
+      delay: "0ms"
+      buffer: 10000000
+      multicast: True
+
+  # NOTE: the latencies on the links here are based on real measurements between client namespaces (going through the routers) over 1000 ICMP pings (so latencies here are RTT/2)
+  routers:
+    num: 5
+    links:
+      - endpoints: [ "r1", "r2" ] # chirop to gros (lille to nancy)
+        multicast: false
+        gre: true
+        delay: "4.3ms"
+      - endpoints: [ "r2", "r3" ] # gros to ecotype (nancy to rennes)
+        multicast: false
+        gre: true
+        delay: "6.04ms"
+      - endpoints: [ "r3", "r4" ] # parasilo to ecotype (rennes to nantes)
+        multicast: false
+        gre: true
+        delay: "1.07ms"
+      - endpoints: [ "r2", "r5" ] # gros to nova (nancy to lyon)
+        multicast: false
+        gre: true
+        delay: "5.59ms"
+
+  servers: [ "server1" ]
+  relays: [ "relay_1", "relay_2", "relay_3", "relay_4" ]
+  clients: [ "25 CLIENTS (1)", "25 CLIENTS (2)", "25 CLIENTS (3)", "25 CLIENTS (4)" ]
+  links:
+    - endpoints: [ "r1", "server1" ]
+    # Relays (one per non-server cluster)
+    - endpoints: [ "r2", "relay_1" ]
+    - endpoints: [ "r3", "relay_2" ]
+    - endpoints: [ "r4", "relay_3" ]
+    - endpoints: [ "r5", "relay_4" ]
+    # R2: clients 1-25
+    - endpoints: [ "r2", "25 CLIENTS (1)" ]
+    # R3: clients 26-50
+    - endpoints: [ "r3", "25 CLIENTS (2)" ]
+    # R4: clients 51-75
+    - endpoints: [ "r4", "25 CLIENTS (3)" ]
+
+    # R5: clients 76-100
+    - endpoints: [ "r5", "25 CLIENTS (4)" ]

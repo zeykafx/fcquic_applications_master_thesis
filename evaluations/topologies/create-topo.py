@@ -89,6 +89,7 @@ def parse_config_file(
             topology["servers"],
             topology["clients"],
             topology["links"],
+            topology["relays"],
         )
 
 
@@ -419,7 +420,7 @@ def main():
 
     conf_file = args.config_path
 
-    defaults, routers, servers, clients, links = parse_config_file(conf_file)
+    defaults, routers, servers, clients, links, relays = parse_config_file(conf_file)
 
     draw_diagram = args.draw
     config_path = Path(conf_file)
@@ -440,6 +441,13 @@ def main():
             print(f"Adding server: {server}")
 
         topo.add_node(server)
+
+
+    for relay in relays:
+        if verbose:
+            print(f"Adding relay: {relay}")
+
+        topo.add_node(relay)
 
     clients_list = parse_clients(clients, topo)
 

@@ -1,0 +1,153 @@
+topology:
+    defaults:
+        routers:
+            multicast: True
+            rp_id: 1
+            use_asm: False
+            asm_prefix: "224.0.0.0/4"
+
+        links:
+            bandwidth: "10Gbit"
+            loss: "0%"
+            burst: "0%"
+            delay: "0ms"
+            buffer: 10000000
+            multicast: True
+
+    # NOTE: the latencies on the links here are based on real measurements between client namespaces (going through the routers) over 1000 ICMP pings (so latencies here are RTT/2)
+    routers:
+        num: 5
+        links:
+            - endpoints: [ "r1", "r2" ] # chirop to gros (lille to nancy)
+              multicast: false
+              gre: true
+              delay: "4.3ms"
+            - endpoints: [ "r2", "r3" ] # gros to ecotype (nancy to rennes)
+              multicast: false
+              gre: true
+              delay: "6.04ms"
+            - endpoints: [ "r3", "r4" ] # parasilo to ecotype (rennes to nantes)
+              multicast: false
+              gre: true
+              delay: "1.07ms"
+            - endpoints: [ "r2", "r5" ] # gros to nova (nancy to lyon)
+              multicast: false
+              gre: true
+              delay: "5.59ms"
+
+    servers: [ "server1" ]
+    relays: [ "relay_1", "relay_2", "relay_3", "relay_4" ]
+    clients:
+        num: 100
+
+    links:
+        - endpoints: [ "r1", "server1" ]
+        # Relays (one per non-server cluster)
+        - endpoints: [ "r2", "relay_1" ]
+        - endpoints: [ "r3", "relay_2" ]
+        - endpoints: [ "r4", "relay_3" ]
+        - endpoints: [ "r5", "relay_4" ]
+        # R2: clients 1-25
+        - endpoints: [ "r2", "client1" ]
+        - endpoints: [ "r2", "client2" ]
+        - endpoints: [ "r2", "client3" ]
+        - endpoints: [ "r2", "client4" ]
+        - endpoints: [ "r2", "client5" ]
+        - endpoints: [ "r2", "client6" ]
+        - endpoints: [ "r2", "client7" ]
+        - endpoints: [ "r2", "client8" ]
+        - endpoints: [ "r2", "client9" ]
+        - endpoints: [ "r2", "client10" ]
+        - endpoints: [ "r2", "client11" ]
+        - endpoints: [ "r2", "client12" ]
+        - endpoints: [ "r2", "client13" ]
+        - endpoints: [ "r2", "client14" ]
+        - endpoints: [ "r2", "client15" ]
+        - endpoints: [ "r2", "client16" ]
+        - endpoints: [ "r2", "client17" ]
+        - endpoints: [ "r2", "client18" ]
+        - endpoints: [ "r2", "client19" ]
+        - endpoints: [ "r2", "client20" ]
+        - endpoints: [ "r2", "client21" ]
+        - endpoints: [ "r2", "client22" ]
+        - endpoints: [ "r2", "client23" ]
+        - endpoints: [ "r2", "client24" ]
+        - endpoints: [ "r2", "client25" ]
+        # R3: clients 26-50
+        - endpoints: [ "r3", "client26" ]
+        - endpoints: [ "r3", "client27" ]
+        - endpoints: [ "r3", "client28" ]
+        - endpoints: [ "r3", "client29" ]
+        - endpoints: [ "r3", "client30" ]
+        - endpoints: [ "r3", "client31" ]
+        - endpoints: [ "r3", "client32" ]
+        - endpoints: [ "r3", "client33" ]
+        - endpoints: [ "r3", "client34" ]
+        - endpoints: [ "r3", "client35" ]
+        - endpoints: [ "r3", "client36" ]
+        - endpoints: [ "r3", "client37" ]
+        - endpoints: [ "r3", "client38" ]
+        - endpoints: [ "r3", "client39" ]
+        - endpoints: [ "r3", "client40" ]
+        - endpoints: [ "r3", "client41" ]
+        - endpoints: [ "r3", "client42" ]
+        - endpoints: [ "r3", "client43" ]
+        - endpoints: [ "r3", "client44" ]
+        - endpoints: [ "r3", "client45" ]
+        - endpoints: [ "r3", "client46" ]
+        - endpoints: [ "r3", "client47" ]
+        - endpoints: [ "r3", "client48" ]
+        - endpoints: [ "r3", "client49" ]
+        - endpoints: [ "r3", "client50" ]
+        # R4: clients 51-75
+        - endpoints: [ "r4", "client51" ]
+        - endpoints: [ "r4", "client52" ]
+        - endpoints: [ "r4", "client53" ]
+        - endpoints: [ "r4", "client54" ]
+        - endpoints: [ "r4", "client55" ]
+        - endpoints: [ "r4", "client56" ]
+        - endpoints: [ "r4", "client57" ]
+        - endpoints: [ "r4", "client58" ]
+        - endpoints: [ "r4", "client59" ]
+        - endpoints: [ "r4", "client60" ]
+        - endpoints: [ "r4", "client61" ]
+        - endpoints: [ "r4", "client62" ]
+        - endpoints: [ "r4", "client63" ]
+        - endpoints: [ "r4", "client64" ]
+        - endpoints: [ "r4", "client65" ]
+        - endpoints: [ "r4", "client66" ]
+        - endpoints: [ "r4", "client67" ]
+        - endpoints: [ "r4", "client68" ]
+        - endpoints: [ "r4", "client69" ]
+        - endpoints: [ "r4", "client70" ]
+        - endpoints: [ "r4", "client71" ]
+        - endpoints: [ "r4", "client72" ]
+        - endpoints: [ "r4", "client73" ]
+        - endpoints: [ "r4", "client74" ]
+        - endpoints: [ "r4", "client75" ]
+        # R5: clients 76-100
+        - endpoints: [ "r5", "client76" ]
+        - endpoints: [ "r5", "client77" ]
+        - endpoints: [ "r5", "client78" ]
+        - endpoints: [ "r5", "client79" ]
+        - endpoints: [ "r5", "client80" ]
+        - endpoints: [ "r5", "client81" ]
+        - endpoints: [ "r5", "client82" ]
+        - endpoints: [ "r5", "client83" ]
+        - endpoints: [ "r5", "client84" ]
+        - endpoints: [ "r5", "client85" ]
+        - endpoints: [ "r5", "client86" ]
+        - endpoints: [ "r5", "client87" ]
+        - endpoints: [ "r5", "client88" ]
+        - endpoints: [ "r5", "client89" ]
+        - endpoints: [ "r5", "client90" ]
+        - endpoints: [ "r5", "client91" ]
+        - endpoints: [ "r5", "client92" ]
+        - endpoints: [ "r5", "client93" ]
+        - endpoints: [ "r5", "client94" ]
+        - endpoints: [ "r5", "client95" ]
+        - endpoints: [ "r5", "client96" ]
+        - endpoints: [ "r5", "client97" ]
+        - endpoints: [ "r5", "client98" ]
+        - endpoints: [ "r5", "client99" ]
+        - endpoints: [ "r5", "client100" ]
