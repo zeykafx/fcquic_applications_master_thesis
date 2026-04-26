@@ -543,8 +543,8 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
-    fig = plt.figure(figsize=(9, 8))
-    latexify(nb_subplots_line=1, fig_height=9, fig_width=8)
+    fig = plt.figure(figsize=(7, 7))
+    latexify(nb_subplots_line=1, fig_height=7, fig_width=7)
 
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
@@ -588,10 +588,16 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
         # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
         # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
         # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
-        x_min = float(all_latencies.quantile(0.95))
-        x_max = float(all_latencies.max())
+
+        # x_min = float(all_latencies.quantile(0.95))
+        # x_max = float(all_latencies.max())
+        # axins.set_xlim(x_min, x_max)
+        # axins.set_ylim(0.95, 1.001)
+
+        x_min = float(all_latencies.min())
+        x_max = float(all_latencies.quantile(0.90))
         axins.set_xlim(x_min, x_max)
-        axins.set_ylim(0.95, 1.001)
+        axins.set_ylim(0, 0.90)
 
         axins.tick_params(labelsize=8)
         axins.grid(True, alpha=0.3)
