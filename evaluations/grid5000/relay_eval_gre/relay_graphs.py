@@ -68,6 +68,8 @@ def main(res_path, out_path, name, inset, ack_rate_path, cpu_csv_path):
             inset,
         )
 
+    copy_data = data_df.copy()
+    plot_mean_median_latency(copy_data, out_path, name)
     plot_mean_median_vs_data_size(data_df, out_path, name)
     plot_ack_rate_graphs(ack_rate_path, out_path, name)
     plot_cpu_load(cpu_csv_path, out_path, name)
@@ -282,6 +284,86 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
     plt.close(fig)
 
 
+def plot_mean_median_latency(data_df, out_path, name):
+    q = data_df["y_LATENCY"].quantile(0.995)
+    print(f"Outlier threshold: {q}")
+    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+
+    # from microseconds to milliseconds
+    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+
+    # clean up the messy quotes that npf adds
+    data_df["RELAY_VERSION"] = data_df["RELAY_VERSION"].str.replace('"', "")
+
+    order = ["none", "RELAY", "APP_RELAY"]
+    labels = {
+        "none": "No Relay",
+        "RELAY": "FCQUIC Relay",
+        "APP_RELAY": "Application Relay",
+    }
+    palette = {
+        "none": NO_RELAY_COLOR,
+        "RELAY": FCQUIC_RELAY_COLOR,
+        "APP_RELAY": APP_RELAY_COLOR,
+    }
+
+    for mean_or_median in ["mean", "median"]:
+        if mean_or_median == "mean":
+            grouped = (
+                data_df[["RELAY_VERSION", "y_LATENCY"]]
+                .groupby("RELAY_VERSION")["y_LATENCY"]
+                .agg(["mean", "std"])
+                .reset_index()
+            )
+        else:
+            grouped = (
+                data_df[["RELAY_VERSION", "y_LATENCY"]]
+                .groupby("RELAY_VERSION")["y_LATENCY"]
+                .agg(["median", "std"])
+                .reset_index()
+            )
+
+        grouped = grouped[grouped["RELAY_VERSION"].isin(order)]
+
+        grouped["RELAY_VERSION"] = pd.Categorical(
+            grouped["RELAY_VERSION"], categories=order, ordered=True
+        )
+        grouped = grouped.sort_values("RELAY_VERSION")
+        grouped["relay_type"] = grouped["RELAY_VERSION"].map(labels)
+
+        sns.set_style("whitegrid")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+
+        bars = ax.bar(
+            grouped["relay_type"],
+            grouped[mean_or_median],
+            yerr=grouped["std"],
+            width=0.5,
+            edgecolor="black",
+            capsize=5,
+            color=[palette[v] for v in grouped["RELAY_VERSION"]],
+        )
+
+        labels_axes = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped[mean_or_median], grouped["std"])]
+        ax.bar_label(bars, labels=labels_axes, padding=5, fontsize=15)
+
+        ax.set_xlabel("Relay implementation", fontsize=13)
+        ax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=13)
+        ax.set_title(
+            f"{mean_or_median.capitalize()} latency vs Relay Implementation",
+            fontsize=15,
+        )
+        ax.set_ylim(0)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(
+            f"{out_path}/{mean_or_median}_latency_vs_relay_{name}.svg",
+            bbox_inches="tight",
+        )
+        plt.close(fig)
+
+
 def plot_mean_median_vs_data_size(data_df, out_path, name):
     if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
         print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
@@ -291,10 +373,10 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
         print("only one additional data size, skipping mean/median plot.")
         return
 
-    # remove outliers
-    q = data_df["y_LATENCY"].quantile(0.995)
-    print(f"Outlier threshold: {q}")
-    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+    # # remove outliers
+    # q = data_df["y_LATENCY"].quantile(0.995)
+    # print(f"Outlier threshold: {q}")
+    # data_df = data_df[data_df["y_LATENCY"] < q].copy()
 
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
@@ -427,9 +509,9 @@ def _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
 def process_and_plot(data_df, out_path, name, data_size, inset=False):
     # remove outliers
-    q = data_df["y_LATENCY"].quantile(0.995)
-    print(f"Outlier threshold: {q}")
-    data_df = data_df[data_df["y_LATENCY"] < q]
+    # q = data_df["y_LATENCY"].quantile(0.995)
+    # print(f"Outlier threshold: {q}")
+    # data_df = data_df[data_df["y_LATENCY"] < q]
 
     # filter dataframes based on RELAY_VERSION, mappings:
     df_no_relay = data_df[data_df["RELAY_VERSION"] == "none"]
