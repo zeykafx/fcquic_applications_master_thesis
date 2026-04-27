@@ -100,50 +100,6 @@ def get_mean_std_grouped_for_df(df):
     grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
     return grouped
 
-
-def read_csv(path):
-    times, sizes = [], []
-    try:
-        with open(path) as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                times.append(float(row["time"]))
-                sizes.append(int(row["length"]))
-    except Exception as e:
-        print(e)
-    return times, sizes
-
-
-def sliding_window_rates(times_ms, sizes_bytes, window_ms):
-    # compute the peak byte count with a sliding window
-    if not times_ms:
-        return []
-
-    # merge the times and sizes together then sort them at once
-    events = sorted(zip(times_ms, sizes_bytes))
-    rates = []
-
-    left = 0
-    window_sum = 0
-    for right in range(len(events)):
-        window_sum += events[right][1]
-
-        left_most_time = events[left][0]
-        right_most_time = events[right][0]
-
-        # if the window is too large in ms, we remove the left most value and go right by one
-        while right_most_time - left_most_time >= window_ms and left < right:
-            window_sum -= events[left][1]
-            left += 1
-
-        # record the rate for this window
-        width = events[right][0] - events[left][0]
-        if width > 0:
-            rates.append(window_sum / (width / 1000.0) / 1e6)  # MB per second
-
-    return rates
-
-
 def plot_ack_rate_graphs(ack_rates_path, out_path, name):
 
     ack_files = {
@@ -152,7 +108,6 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
         "APP_RELAY": f"{ack_rates_path}APP_RELAY.csv",
     }
 
-    WINDOW_MS = 100
     labels = {
         "none": "No Relay",
         "RELAY": "FCQUIC Relay",
@@ -166,47 +121,41 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
 
     records = []
     for label, path in ack_files.items():
-        times, sizes = read_csv(path)
+        ack_rate_df = pd.read_csv(path)
+        ack_rate_df.sort_values(by="time")
 
-        # compute the rates over windows of a 100ms
-        rates = sliding_window_rates(times, sizes, WINDOW_MS)
-        mean_rate = np.mean(rates)
-        std_rate = np.std(rates)
+        times = ack_rate_df["time"]
+        total_measured_time = (times.iloc[-1] - times.iloc[0]) /1000 # from ms to seconds
+        sum_ack_lengths = ack_rate_df["length"].sum()
+        # (total len / total time) is in bits, so div by 1 million to get megabits
+        rate = (sum_ack_lengths / total_measured_time) / 1e6
 
         records.append(
             {
                 "relay_type": labels[label],
-                "mean_ack_rate_mbps": mean_rate,
-                "std_ack_rate": std_rate,
+                "ack_rate_mbps": rate,
             }
         )
 
     df = pd.DataFrame(records)
 
     sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(8, 8))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
+    fig, ax = plt.subplots(figsize=(6, 7))
+    latexify(nb_subplots_line=1, fig_height=6, fig_width=7)
     bars = ax.bar(
         df["relay_type"],
-        df["mean_ack_rate_mbps"],
-        yerr=df["std_ack_rate"],
+        df["ack_rate_mbps"],
         color=palette.values(),
         width=0.5,
         edgecolor="black",
-        capsize=5,
     )
 
-    labels = [
-        f"{m:.3f} +- {s:.2f}"
-        for m, s in zip(df["mean_ack_rate_mbps"], df["std_ack_rate"])
-    ]
+    labels = [f"{m:.3f}" for m in df["ack_rate_mbps"]]
     ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
 
     ax.set_xlabel("Relay implementation", fontsize=15)
-    ax.set_ylabel(
-        f"Mean ACK rate (MB/s) over {WINDOW_MS}ms sliding windows", fontsize=15
-    )
-    ax.set_title("Mean ACK rate by relay implementation", fontsize=15)
+    ax.set_ylabel(f"ACK rate (MB/s)", fontsize=15)
+    ax.set_title("ACK rate (in MB/s) by relay implementation", fontsize=15)
     ax.set_ylim(0)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -225,6 +174,8 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
 
     # select the rows with cpu_id = -1 (they contain the mean of the cpu usage for that time step)
     cpu_df = cpu_df[cpu_df["cpu_id"] == -1]
+    # cpu_df = cpu_df[cpu_df["cpu_id"] <= 1]
+
 
     # clean up the messy quotes that npf adds
     cpu_df["RELAY_VERSION"] = cpu_df["RELAY_VERSION"].str.replace('"', "")
@@ -285,9 +236,9 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
 
 
 def plot_mean_median_latency(data_df, out_path, name):
-    q = data_df["y_LATENCY"].quantile(0.995)
-    print(f"Outlier threshold: {q}")
-    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+    # q = data_df["y_LATENCY"].quantile(0.995)
+    # print(f"Outlier threshold: {q}")
+    # data_df = data_df[data_df["y_LATENCY"] < q].copy()
 
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
@@ -345,7 +296,10 @@ def plot_mean_median_latency(data_df, out_path, name):
             color=[palette[v] for v in grouped["RELAY_VERSION"]],
         )
 
-        labels_axes = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped[mean_or_median], grouped["std"])]
+        labels_axes = [
+            f"{m:.3f} +- {s:.2f}"
+            for m, s in zip(grouped[mean_or_median], grouped["std"])
+        ]
         ax.bar_label(bars, labels=labels_axes, padding=5, fontsize=15)
 
         ax.set_xlabel("Relay implementation", fontsize=13)
@@ -566,7 +520,7 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
 
     # zoomed inset
     if inset:
-        axins = ax.inset_axes([0.62, 0.05, 0.36, 0.25])  # type: ignore
+        axins = ax.inset_axes([0.58, 0.05, 0.40, 0.25])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")
@@ -599,12 +553,12 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
         axins.set_xlim(x_min, x_max)
         axins.set_ylim(0, 0.90)
 
-        axins.tick_params(labelsize=8)
+        axins.tick_params(labelsize=10)
         axins.grid(True, alpha=0.3)
 
-        ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
+        ax.legend(loc="center right", fontsize=13, framealpha=0.9)
     else:
-        ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
+        ax.legend(loc="lower right", fontsize=13, framealpha=0.9)
 
     fig.tight_layout()
 
