@@ -5,8 +5,6 @@
 %info
 FCQUIC vs QUIC vs TCP (with TLS)
 
-# %import@server dev_rate NIC=0 SIDE=rx RATE_THRESH=100000
-
 %config
 n_runs=3
 timeout=3600
@@ -15,25 +13,26 @@ result_append={LATENCY}
 %late_variables
 RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=1
-BIN_LOG_LEVEL="info"
+BIN_LOG_LEVEL="warn"
+SERVERS_NUMBER_THREADS=4
 
 %variables
 // # ------------- RECEIVERS TEST -------------
 TEST_DIR_NAME="receivers"
 TOPO_CONF_NAME="receivers"
 CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
-NUM_CLIENTS={2,11,21,31,41,51,61,71,81,91,101}
+// # NUM_CLIENTS={2,11,21,31,41,51,61,71,81,91,101}
 // # NUM_CLIENTS={2,3,13,23,33,43,53,63,75}
 // # NUM_CLIENTS={2,3,7,15,23,35}
 // # NUM_CLIENTS={3,9,15,21,27,33}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35}
 // # NUM_CLIENTS={3,5,7,9,11,13,15,17,19,21,23,25}
 // # NUM_CLIENTS={2,3,7,11,15,19,23}
-// # NUM_CLIENTS={2,3,5,7,9,11}
+NUM_CLIENTS={2,11,21}
 INTERVAL=100
-LAMBDA=100
+LAMBDA=10000
 TEST_LENGTH=11
-FALLBACK_DELAY=200
+FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
 latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
@@ -62,9 +61,8 @@ data:ADDITIONAL_DATA_SIZE={0,500,1100,2200,3000}
 POISSON="true"
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
-PER_CLIENT_LAT_RESULTS=false
+PER_CLIENT_LAT_RESULTS="false"
 
-TRAFFIC_CAPTURE="false"
 RUN_LOGS_DIR_BASELINE="./logs"
 RUN_LOGS_DIR_TCP="./logs"
 RUN_LOGS_DIR_TCP_NO_TLS="./logs"
@@ -74,17 +72,31 @@ RUN_LOGS_DIR_TOKIO_QUICHE="./logs"
 WORKDIR=""
 CARGO_PATH=""
 
+
+// NOTE: the servers have 4 threads. They are set to cores 0-3 (3 included), CPUMAX is exclusive here
+%import@server cpuload CPUMIN=0 CPUMAX=4 TEST_LENGTH=11
+
 %init
 
-# ------ Pre setup ------
-# Setting buffer values
-sudo sysctl -w net.core.rmem_max=26214400
-sudo sysctl -w net.core.rmem_max=26214400
+// ------ Pre setup ------
+// Setting UDP buffer values (67 Megabytes)
+sudo sysctl -w net.core.rmem_default=67108864
+sudo sysctl -w net.core.rmem_max=67108864
 
-# # Disable slow start after idle
-# sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
+// Setting TCP buffer values
+sudo sysctl -w net.core.rmem_max=67108864
+sudo sysctl -w net.core.wmem_max=67108864
 
-# ------------------------ Building App ------------------------
+// according to redhat (https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/network_troubleshooting_and_performance_tuning/tuning-tcp-connections-for-high-throughput#the-system-wide-tcp-socket-buffer-settings)
+// the tree values are 1. the min socket size, 2. the default socket size, and 3. the max socket size that a socket can have if requested
+sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
+sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
+sudo sysctl -w net.core.netdev_max_backlog=10000
+
+// Disable slow start after idle
+// sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
+
+// ------------------------ Building App ------------------------
 
 cd $WORKDIR
 cd fcquic_chat
@@ -128,7 +140,7 @@ cp ./cert.key $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.key
 
 
 // ------------------------ SERVER ------------------------
-%script@server sudo=true delay=2
+%script@server sudo=true
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -140,6 +152,8 @@ pkill server || true
 pkill tquic-client || true
 pkill tquic-server || true
 
+// when using taskset -c 0-n, n is inclusive, so here SERVERS_NUMBER_THREADS is 4, we need n to be 3
+TASKSET_MAX_CORE=$(echo "${SERVERS_NUMBER_THREADS}-1" | bc)
 
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
 
@@ -154,7 +168,7 @@ if [ "$CURRENT_TEST" = "QUIC" ]; then
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
 
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_BASELINE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/quic-server \
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_BASELINE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/quic-server \
 		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
 
 elif [ "$CURRENT_TEST" = "TCP" ]; then
@@ -171,8 +185,8 @@ elif [ "$CURRENT_TEST" = "TCP" ]; then
    		SERVER_ARGS="--no-delay"
     fi
 
-	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-server \
-		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} > ${LOG_FILENAME}  2>&1 &
+	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tcp-server \
+		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} > ${LOG_FILENAME}  2>&1 &
 
 elif [ "$CURRENT_TEST" = "TCP_NO_TLS" ]; then
 
@@ -188,8 +202,8 @@ elif [ "$CURRENT_TEST" = "TCP_NO_TLS" ]; then
    		SERVER_ARGS="--no-delay"
     fi
 
-	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tcp-server \
-		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --no-tls > ${LOG_FILENAME}  2>&1 &
+	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tcp-server \
+		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} --no-tls > ${LOG_FILENAME}  2>&1 &
 
 
 elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
@@ -202,7 +216,7 @@ elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
 
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
 	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
 
@@ -215,8 +229,8 @@ elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
 
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/tquic-server \
-		 --src 10.10.0.2:4433 --test-mode > ${LOG_FILENAME}  2>&1 &
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tquic-server \
+		 --src 10.10.0.2:4433 --test-mode --length ${TEST_LENGTH} > ${LOG_FILENAME}  2>&1 &
 
 else
 
@@ -227,8 +241,8 @@ else
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
 
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/server \
-	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
+	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
+	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --length ${TEST_LENGTH} --flexicast \
 	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy > ${LOG_FILENAME}  2>&1 &
 
 fi
@@ -242,7 +256,7 @@ echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 
 // ------------------------ CLIENTS ------------------------
-%script@client waitfor=server-up delay=2
+%script@client waitfor=server-up delay=1
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -357,11 +371,3 @@ for pid in ${pids[*]}; do
 done
 
 echo "EVENT clients-done"
-
-// ------------------------ TRAFFIC CAPTURE ------------------------
-// %script@capture autokill=false sudo=true
-// if [ "$TRAFFIC_CAPTURE" = "true" ]; then
-//    echo "Starting traffic capture"
-
-//    ip netns exec server1
-// fi

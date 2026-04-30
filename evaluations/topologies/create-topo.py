@@ -81,6 +81,7 @@ def parse_config_file(
             raise Exception(
                 f"Key(s) '{', '.join(missing)}' not found in configuration file {filepath}!"
             )
+        relays = topology["relay"] if "relays" in topology else []
 
         # return a tuple with the list of routers, servers, clients, and links
         return (
@@ -89,7 +90,7 @@ def parse_config_file(
             topology["servers"],
             topology["clients"],
             topology["links"],
-            topology["relays"],
+            relays,
         )
 
 

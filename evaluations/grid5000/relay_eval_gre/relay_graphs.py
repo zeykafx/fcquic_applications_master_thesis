@@ -100,6 +100,7 @@ def get_mean_std_grouped_for_df(df):
     grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
     return grouped
 
+
 def plot_ack_rate_graphs(ack_rates_path, out_path, name):
 
     ack_files = {
@@ -125,8 +126,11 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
         ack_rate_df.sort_values(by="time")
 
         times = ack_rate_df["time"]
-        total_measured_time = (times.iloc[-1] - times.iloc[0]) /1000 # from ms to seconds
+        total_measured_time = (
+            times.iloc[-1] - times.iloc[0]
+        ) / 1000  # from ms to seconds
         sum_ack_lengths = ack_rate_df["length"].sum()
+        num_acks = ack_rate_df["length"].count()
         # (total len / total time) is in bits, so div by 1 million to get megabits
         rate = (sum_ack_lengths / total_measured_time) / 1e6
 
@@ -134,6 +138,7 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
             {
                 "relay_type": labels[label],
                 "ack_rate_mbps": rate,
+                "num_acks": num_acks,
             }
         )
 
@@ -165,6 +170,34 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
     )
     plt.close()
 
+    fig, ax = plt.subplots(figsize=(6, 7))
+    latexify(nb_subplots_line=1, fig_height=6, fig_width=7)
+    bars = ax.bar(
+        df["relay_type"],
+        df["num_acks"],
+        color=palette.values(),
+        width=0.5,
+        edgecolor="black",
+    )
+
+    labels = [f"{m:.3f}" for m in df["num_acks"]]
+    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
+
+    ax.set_xlabel("Relay implementation", fontsize=15)
+    ax.set_ylabel(f"Number of ACK frames", fontsize=15)
+    ax.set_title(
+        "Number of ACK frames received by FCQUIC source with/without relays",
+        fontsize=15,
+    )
+    ax.set_ylim(0)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(
+        f"{out_path}/num_ack_{name}.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+
 
 def plot_cpu_load(cpu_csv_path, out_path, name):
     cpu_df = pd.read_csv(cpu_csv_path)
@@ -175,7 +208,6 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
     # select the rows with cpu_id = -1 (they contain the mean of the cpu usage for that time step)
     cpu_df = cpu_df[cpu_df["cpu_id"] == -1]
     # cpu_df = cpu_df[cpu_df["cpu_id"] <= 1]
-
 
     # clean up the messy quotes that npf adds
     cpu_df["RELAY_VERSION"] = cpu_df["RELAY_VERSION"].str.replace('"', "")
