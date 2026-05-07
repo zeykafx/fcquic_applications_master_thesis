@@ -285,8 +285,12 @@ class Topology:
                 ]
             )
 
-            subprocess.run(["ip", "link", "set", f"{underlay_itf1}", "netns", f"{node1}"])
-            subprocess.run(["ip", "link", "set", f"{underlay_itf2}", "netns", f"{node2}"])
+            subprocess.run(
+                ["ip", "link", "set", f"{underlay_itf1}", "netns", f"{node1}"]
+            )
+            subprocess.run(
+                ["ip", "link", "set", f"{underlay_itf2}", "netns", f"{node2}"]
+            )
 
             subprocess.run(
                 [
@@ -421,7 +425,17 @@ class Topology:
             )
         else:
             subprocess.run(
-                ["ip", "link", "add", f"{itf1}", "type", "veth", "peer", "name", f"{itf2}"]
+                [
+                    "ip",
+                    "link",
+                    "add",
+                    f"{itf1}",
+                    "type",
+                    "veth",
+                    "peer",
+                    "name",
+                    f"{itf2}",
+                ]
             )
 
             # assign to correct namespace
@@ -665,7 +679,9 @@ class Topology:
             for node1, node2, info in self.graph.edges(data=True):
                 if node1 > node2:
                     continue
-                link_futures.append(executor.submit(self._create_link, node1, node2, info))
+                link_futures.append(
+                    executor.submit(self._create_link, node1, node2, info)
+                )
             for future in as_completed(link_futures):
                 future.result()
 

@@ -325,31 +325,6 @@ def ping_node(source_ns, node_ip, count=5, interval=0.1):
     return "0% packet loss" in out
 
 
-def check_rp_decided(topo):
-    # check on the running topology that the router designated as RP is indeed chosen as the RP
-    pass
-
-
-# TODO: finish later
-# def check_convergence(topo) -> bool:
-#     # nodes = {}
-#     # for node in topo.graph.nodes():
-#     #     if not topo._is_router(node):
-#     #         ip = topo._get_node_ip(node)
-#     #         nodes[node] = ip
-
-#     nodes = {
-#         node: topo._get_node_ip(node)
-#         for node in topo.graph.nodes()
-#         if not topo._is_router(node)
-#     }
-
-#     for node, ip in nodes.items():
-#         for other, other_ip in node.items():
-#             if other != node:
-#                 res = ping_node(node, other_ip)
-
-
 def wait_isis_convergence(topo) -> bool:
     # return True when isis has converged
     routers_status = {
@@ -443,7 +418,6 @@ def main():
 
         topo.add_node(server)
 
-
     for relay in relays:
         if verbose:
             print(f"Adding relay: {relay}")
@@ -527,11 +501,7 @@ def main():
                 else default_multicast_enabled_link
             )
 
-            itf_gre_tun = (
-                info["is_gre_tunnel"]
-                if "is_gre_tunnel" in info
-                else False 
-            )
+            itf_gre_tun = info["is_gre_tunnel"] if "is_gre_tunnel" in info else False
 
             if itf_mcast_enabled or itf_gre_tun:
                 itf_conf.pim.enable()
