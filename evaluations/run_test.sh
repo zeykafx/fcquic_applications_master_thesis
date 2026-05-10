@@ -202,7 +202,7 @@ done
 echo "Topology setup and IS-IS converged"
 
 # wait even more for everything to converge
-sleep 10
+sleep 5
 
 # ---------------- Running npf script ----------------
 
@@ -242,12 +242,16 @@ sudo chmod 777 ./tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv
 
 # ---------------- Plots ----------------
 
-# echo "Graphing results"
+echo "Graphing results"
 
 
-# cd $WORKDIR/evaluations/graphs
+cd $WORKDIR/evaluations/graphs
 
-# ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME}
+# ADD_ARGS=""
+# if [ "$TEST_DIR_NAME" = "latency" ]; then
+#     ADD_ARGS="--inset"
+# fi
+# ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} ${ADD_ARGS}
 
 
 # If we ran the latency test, also output the clipped cdf graph
@@ -255,7 +259,7 @@ sudo chmod 777 ./tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv
 #     ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} --clip
 # fi
 
-# echo "Plots written"
+echo "Plots written"
 
 # ---------------- Tearing down the topology ----------------
 

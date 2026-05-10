@@ -10,7 +10,7 @@ Usage:
   %import@server cpuload CPUMIN=0 CPUMAX=16
 
 %script
-unbuffer python3 cpuload.py "${NPF_ROLE}"
+stdbuf -i0 -o0 -e0 python3 cpuload.py "${NPF_ROLE}"
 
 %variables
 CPUMIN=0

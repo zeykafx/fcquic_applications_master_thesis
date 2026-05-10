@@ -3,8 +3,9 @@
 import argparse
 import os
 from typing import Literal
-
+import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter, LogLocator
 import numpy as np
 import pandas as pd
 from brokenaxes import brokenaxes
@@ -62,6 +63,7 @@ def plot_average_latency_vs_receivers(
     poisson_str,
     add_data,
     out_path,
+    log: bool = False
 ):
     height = 11
     width = 11
@@ -69,8 +71,14 @@ def plot_average_latency_vs_receivers(
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
     bax = brokenaxes(hspace=0.10)
+    if log:
+        for ax in bax.axs:
+            ax.set_yscale("log")
+            ax.yaxis.set_major_locator(LogLocator(base=10.0, numticks=15)) 
+            ax.yaxis.set_major_formatter(ScalarFormatter())
+            ax.tick_params(axis="y", which="minor", labelsize=8)
+    
     # bax = brokenaxes(ylims=((0, 0.5), (5.5, 45)), hspace=0.10)
-
 
     # FCQUIC
     if len(fcquic_grouped) > 0:
@@ -201,7 +209,7 @@ def plot_average_latency_vs_receivers(
     bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
 
     bax.set_ylabel(
-        f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40
+        f"{mean_or_median.capitalize()} Latency ({"Log scale " if log else ""}ms)", fontsize=12, labelpad=40
     )
 
     bax.grid(True, alpha=0.3)
@@ -216,7 +224,7 @@ def plot_average_latency_vs_receivers(
     #     bbox_inches="tight",
     # )
     plt.savefig(
-        f"{out_path}/{mean_or_median}_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
+        f"{out_path}/{"log_" if log else ""}{mean_or_median}_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
 
@@ -245,6 +253,93 @@ def get_mean_std_grouped_for_df(df):
     grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
     grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
     return grouped
+
+
+def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
+    cpu_df = pd.read_csv(cpu_csv_path)
+    if cpu_df.empty:
+        print("no CPU data, skipping cpu plot")
+        return
+
+    # clean up the messy quotes that npf adds
+    cpu_df["CURRENT_TEST"] = cpu_df["CURRENT_TEST"].str.replace('"', "")
+
+    # the cpu load is for each core is in a different col, so aggregate them
+    cpu_cols = [c for c in cpu_df.columns if c.startswith("y_CPU-")]
+    if not cpu_cols:
+        print("no CPU date, skipping cpu plot")
+        return
+
+    # instead of using the mean computed by the npf script, we compute it here because
+    # somehow the npf computed mean doesn't always match this one... (missing data??)
+    cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
+
+    order = ["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    labels = {
+        "FCQUIC": "FC-QUIC",
+        "FCQUIC_FEC": "FC-QUIC with FEC",
+        "QUIC": "Baseline QUIC",
+        "TCP": "Baseline TCP (+TLS)",
+        "TCP_NO_TLS": "Baseline TCP (NO TLS)",
+        "TOKIO_QUICHE": "Baseline Tokio-quiche",
+    }
+    palette = {
+        "FCQUIC": FCQUIC_COLOR,
+        "FCQUIC_FEC": FCQUIC_FEC_COLOR,
+        "QUIC": BASELINE_QUIC_COLOR,
+        "TCP": BASELINE_TCP_COLOR,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
+        "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+    }
+
+    grouped = (
+        cpu_df[["CURRENT_TEST", "mean_utilization"]]
+        .groupby("CURRENT_TEST")["mean_utilization"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+
+    grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
+    grouped["CURRENT_TEST"] = pd.Categorical(
+        grouped["CURRENT_TEST"], categories=order, ordered=True
+    )
+    grouped = grouped.sort_values("CURRENT_TEST")
+
+    grouped["protocol"] = grouped["CURRENT_TEST"].map(labels)
+
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
+
+    bars = ax.bar(
+        grouped["protocol"],
+        grouped["mean"],
+        yerr=grouped["std"],
+        color=[palette[v] for v in grouped["CURRENT_TEST"]],
+        width=0.5,
+        edgecolor="black",
+        capsize=5,
+    )
+
+    bar_labels = [
+        f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
+    ]
+    ax.bar_label(bars, labels=bar_labels, padding=5, fontsize=15)
+
+    ax.set_ybound(0)
+    ax.set_xlabel("Protocol", fontsize=13)
+    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=13)
+    ax.set_title(
+        f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+        fontsize=15,
+    )
+    ax.tick_params(axis="x", rotation=20)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(
+        f"{out_path}/cpu_load_{topo_name}_{poisson_str}.svg", bbox_inches="tight"
+    )
+    plt.close(fig)
 
 
 def main(res_path, out_path):
@@ -317,21 +412,23 @@ def main(res_path, out_path):
     tcp_no_tls_grouped = get_median_std_grouped_for_df(df_tcp_no_tls)
     tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
 
-    plot_average_latency_vs_receivers(
-        "median",
-        fcquic_grouped,
-        fcquic_fec_grouped,
-        baseline_grouped,
-        tcp_grouped,
-        tcp_no_tls_grouped,
-        tokio_quiche_grouped,
-        clients_range_str,
-        client_range,
-        topo_name,
-        poisson_str,
-        additional_data,
-        out_path,
-    )
+    for log in [False, True]:
+        plot_average_latency_vs_receivers(
+            "median",
+            fcquic_grouped,
+            fcquic_fec_grouped,
+            baseline_grouped,
+            tcp_grouped,
+            tcp_no_tls_grouped,
+            tokio_quiche_grouped,
+            clients_range_str,
+            client_range,
+            topo_name,
+            poisson_str,
+            additional_data,
+            out_path,
+            log,
+        )
 
     mean_baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
     mean_fcquic_grouped = get_mean_std_grouped_for_df(df_fcquic)
@@ -340,21 +437,26 @@ def main(res_path, out_path):
     mean_tcp_no_tls_grouped = get_mean_std_grouped_for_df(df_tcp_no_tls)
     mean_tokio_quiche_grouped = get_mean_std_grouped_for_df(df_tokio_quiche)
 
-    plot_average_latency_vs_receivers(
-        "mean",
-        mean_fcquic_grouped,
-        mean_fcquic_fec_grouped,
-        mean_baseline_grouped,
-        mean_tcp_grouped,
-        mean_tcp_no_tls_grouped,
-        mean_tokio_quiche_grouped,
-        clients_range_str,
-        client_range,
-        topo_name,
-        poisson_str,
-        additional_data,
-        out_path,
-    )
+    for log in [False, True]:
+        plot_average_latency_vs_receivers(
+            "mean",
+            mean_fcquic_grouped,
+            mean_fcquic_fec_grouped,
+            mean_baseline_grouped,
+            mean_tcp_grouped,
+            mean_tcp_no_tls_grouped,
+            mean_tokio_quiche_grouped,
+            clients_range_str,
+            client_range,
+            topo_name,
+            poisson_str,
+            additional_data,
+            out_path,
+            log,
+        )
+
+    cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
+    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str)
 
 
 if __name__ == "__main__":

@@ -3,10 +3,11 @@
 import argparse
 import os
 from typing import Literal
-
+import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from brokenaxes import brokenaxes
 from style import (
     BASELINE_QUIC_COLOR,
     BASELINE_QUIC_LINESTYLE,
@@ -205,15 +206,136 @@ def plot_avg_lat_vs_add_size(
         f"{mean_or_median.capitalize()} latency vs Message size ({poisson_str})",
         fontsize=14,
     )
-    plt.savefig(
-        f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.png",
-        dpi=300,
-        bbox_inches="tight",
-    )
+    # plt.savefig(
+    #     f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.png",
+    #     dpi=300,
+    #     bbox_inches="tight",
+    # )
     plt.savefig(
         f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
+
+
+def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
+    cpu_df = pd.read_csv(cpu_csv_path)
+    if cpu_df.empty:
+        print("no CPU data, skipping cpu plot")
+        return
+
+    # clean up the messy quotes that npf adds
+    cpu_df["CURRENT_TEST"] = cpu_df["CURRENT_TEST"].str.replace('"', "")
+
+    # the cpu load is for each core is in a different col, so aggregate them
+    cpu_cols = [c for c in cpu_df.columns if c.startswith("y_CPU-")]
+    if not cpu_cols:
+        print("no CPU date, skipping cpu plot")
+        return
+
+    # instead of using the mean computed by the npf script, we compute it here because
+    # somehow the npf computed mean doesn't always match this one... (missing data??)
+    cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
+
+    order = ["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    labels = {
+        "FCQUIC": "FC-QUIC",
+        "FCQUIC_FEC": "FC-QUIC with FEC",
+        "QUIC": "Baseline QUIC",
+        "TCP": "Baseline TCP (+TLS)",
+        "TCP_NO_TLS": "Baseline TCP (NO TLS)",
+        "TOKIO_QUICHE": "Baseline Tokio-quiche",
+    }
+    palette = {
+        "FCQUIC": FCQUIC_COLOR,
+        "FCQUIC_FEC": FCQUIC_FEC_COLOR,
+        "QUIC": BASELINE_QUIC_COLOR,
+        "TCP": BASELINE_TCP_COLOR,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
+        "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+    }
+    linestyles = {
+        "FCQUIC": FCQUIC_LINESTYLE,
+        "FCQUIC_FEC": FCQUIC_FEC_LINESTYLE,
+        "QUIC": BASELINE_QUIC_LINESTYLE,
+        "TCP": BASELINE_TCP_LINESTYLE,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_LINESTYLE,
+        "TOKIO_QUICHE": TOKIO_QUICHE_LINESTYLE,
+    }
+    markers = {
+        "FCQUIC": FCQUIC_MARKER,
+        "FCQUIC_FEC": FCQUIC_FEC_MARKER,
+        "QUIC": BASELINE_QUIC_MARKER,
+        "TCP": BASELINE_TCP_MARKER,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_MARKER,
+        "TOKIO_QUICHE": TOKIO_QUICHE_MARKER,
+    }
+
+    grouped = (
+        cpu_df[["CURRENT_TEST", "ADDITIONAL_DATA_SIZE", "mean_utilization"]]
+        .groupby(["CURRENT_TEST", "ADDITIONAL_DATA_SIZE"])["mean_utilization"]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
+    grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
+
+    grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
+
+    sns.set_style("whitegrid")
+    height = 8
+    width = 10
+    fig = plt.figure(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    low_max = grouped[grouped["CURRENT_TEST"] != "FCQUIC"]["ci_upper"].max()
+    high_min = grouped[grouped["CURRENT_TEST"] == "FCQUIC"]["ci_lower"].min()
+    high_max = grouped[grouped["CURRENT_TEST"] == "FCQUIC"]["ci_upper"].max()
+    low_top = float(np.ceil(low_max + 1))
+    high_bot = float(np.floor(high_min - 1))
+    high_top = float(np.ceil(high_max + 1))
+    bax = brokenaxes(ylims=((0, low_top), (high_bot, high_top)), hspace=0.1)
+
+    for impl in order:
+        sub = grouped[grouped["CURRENT_TEST"] == impl].sort_values(
+            "ADDITIONAL_DATA_SIZE"
+        )
+        if sub.empty:
+            continue
+        bax.plot(
+            sub["ADDITIONAL_DATA_SIZE"],
+            sub["mean"],
+            label=labels[impl],
+            color=palette[impl],
+            linestyle=linestyles[impl],
+            marker=markers[impl],
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+        )
+        bax.fill_between(
+            sub["ADDITIONAL_DATA_SIZE"],
+            sub["ci_lower"],
+            sub["ci_upper"],
+            color=palette[impl],
+            alpha=CONFIDENCE_BAND_OPACITY,
+        )
+
+    bax.set_xlabel("Message size in bytes", fontsize=13, labelpad=25)
+    bax.set_ylabel(
+        "CPU utilization percentage\n(mean over observed cores)",
+        fontsize=13,
+        labelpad=40,
+    )
+    bax.grid(True, alpha=0.3)
+    bax.legend(loc="upper left")
+    plt.title(
+        f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+        fontsize=15,
+    )
+    fig.savefig(
+        f"{out_path}/cpu_load_{topo_name}_{poisson_str}.svg", bbox_inches="tight"
+    )
+    plt.close(fig)
 
 
 def get_median_std_grouped_for_df(df):
@@ -339,6 +461,9 @@ def main(res_path, out_path):
         poisson_str,
         out_path,
     )
+
+    cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
+    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str)
 
 
 if __name__ == "__main__":
