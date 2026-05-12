@@ -21,6 +21,7 @@ bandwidth_low = "10Mbit"
 
 default_bandwidth = bandwidth_source
 default_multicast_enabled_router = True
+default_multicast_enabled = True
 default_multicast_enabled_link = True
 default_delay = "1ms"
 default_buffer = 10000

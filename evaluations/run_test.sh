@@ -247,11 +247,11 @@ echo "Graphing results"
 
 cd $WORKDIR/evaluations/graphs
 
-ADD_ARGS=""
-if [ "$TEST_DIR_NAME" = "latency" ]; then
-    ADD_ARGS="--inset"
-fi
-./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} ${ADD_ARGS}
+# ADD_ARGS=""
+# if [ "$TEST_DIR_NAME" = "latency" ]; then
+#     ADD_ARGS="--inset"
+# fi
+# ./${GRAPH_SCRIPT_TO_USE}.py ../tests/${TEST_DIR_NAME}/out/${RESULT_FILENAME}.csv ./${TEST_DIR_NAME} ${ADD_ARGS}
 
 echo "Plots written"
 

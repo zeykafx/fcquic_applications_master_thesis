@@ -60,9 +60,10 @@ def plot_avg_lat_vs_add_size(
     topo_name,
     poisson_str,
     out_path,
+    no_title,
 ):
-    height = 9.5
-    width = 10
+    height = 8
+    width = 7
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -195,29 +196,23 @@ def plot_avg_lat_vs_add_size(
             alpha=CONFIDENCE_BAND_OPACITY,
         )
 
-    # bax.set_xlabel("Message size in bytes", fontsize=12, labelpad=25)
-    bax.xlabel("Message size in bytes", fontsize=12, labelpad=25)
-    # bax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40)
-    bax.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12, labelpad=40)
+    bax.xlabel("Message size in bytes", labelpad=25)
+    # bax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)", labelpad=40)
+    bax.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", labelpad=40)
 
     bax.grid(True, alpha=0.3)
     bax.legend(loc="upper left")
-    plt.title(
-        f"{mean_or_median.capitalize()} latency vs Message size ({poisson_str})",
-        fontsize=14,
-    )
-    # plt.savefig(
-    #     f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.png",
-    #     dpi=300,
-    #     bbox_inches="tight",
-    # )
+    if not no_title:
+        plt.title(
+            f"{mean_or_median.capitalize()} latency vs Message size ({poisson_str})",
+        )
     plt.savefig(
         f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
 
 
-def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
+def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     cpu_df = pd.read_csv(cpu_csv_path)
     if cpu_df.empty:
         print("no CPU data, skipping cpu plot")
@@ -284,7 +279,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
 
     sns.set_style("whitegrid")
     height = 8
-    width = 10
+    width = 7
     fig = plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -320,22 +315,20 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
             alpha=CONFIDENCE_BAND_OPACITY,
         )
 
-    bax.set_xlabel("Message size in bytes", fontsize=13, labelpad=25)
+    bax.set_xlabel("Message size in bytes", labelpad=25)
     bax.set_ylabel(
-        "CPU utilization percentage\n(mean over observed cores)",
-        fontsize=13,
+        "CPU utilization percentage",
         labelpad=40,
     )
     bax.grid(True, alpha=0.3)
     bax.legend(loc="upper left")
-    plt.title(
-        f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
-        fontsize=15,
-    )
+    if not no_title:
+        plt.title(
+            f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+        )
     fig.savefig(
         f"{out_path}/cpu_load_{topo_name}_{poisson_str}.svg", bbox_inches="tight"
     )
-    plt.close(fig)
 
 
 def get_median_std_grouped_for_df(df):
@@ -364,7 +357,7 @@ def get_mean_std_grouped_for_df(df):
     return grouped
 
 
-def main(res_path, out_path):
+def main(res_path, out_path, no_title=False):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
@@ -379,7 +372,7 @@ def main(res_path, out_path):
 
     # remove outliers
     # TODO: check if this is okay
-    q = data_df["y_LATENCY"].quantile(0.99)
+    q = data_df["y_LATENCY"].quantile(0.995)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]
 
@@ -439,6 +432,7 @@ def main(res_path, out_path):
         topo_name,
         poisson_str,
         out_path,
+        no_title,
     )
 
     mean_baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
@@ -460,16 +454,21 @@ def main(res_path, out_path):
         topo_name,
         poisson_str,
         out_path,
+        no_title,
     )
 
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
-    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str)
+    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("plots")
     parser.add_argument("file_path", type=file_path)
     parser.add_argument("out_path", type=dir_path)
+    parser.add_argument(
+        "--no-title",
+        action="store_true",
+    )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path)
+    main(args.file_path, args.out_path, args.no_title)

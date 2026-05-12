@@ -1,0 +1,33 @@
+topology:
+    defaults:
+        routers:
+            multicast: true
+            rp_id: 1
+            asm_prefix: "224.0.0.0/4"
+            name_prefix: "r"
+            use_asm: false
+
+        links:
+            bandwidth: "1000Mbit"
+            loss: "0.5%"
+            burst: "25%"
+            delay: "0ms"
+            buffer: 1000000
+            multicast: true
+
+    routers:
+        num: 3
+        links:
+            - endpoints: ["r1", "r2"]
+            - endpoints: ["r1", "r3"]
+            - endpoints: ["r2", "r3"]
+
+    servers: ["server1"]
+    clients:
+        num: 3
+
+    links:
+        - endpoints: ["r1", "server1"]
+        - endpoints: ["r1", "client1"]
+        - endpoints: ["r2", "client2"]
+        - endpoints: ["r3", "client3"]

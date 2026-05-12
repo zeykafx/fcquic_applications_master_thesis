@@ -6,7 +6,7 @@
 FCQUIC vs QUIC vs TCP (with TLS)
 
 %config
-n_runs=3
+n_runs=6
 timeout=3600
 result_append={LATENCY}
 
@@ -14,7 +14,7 @@ result_append={LATENCY}
 RELEASE_MODE=true
 CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="warn"
-SERVERS_NUMBER_THREADS=4
+SERVERS_NUMBER_THREADS=2
 
 %variables
 // # ------------- RECEIVERS TEST -------------
@@ -32,7 +32,7 @@ NUM_CLIENTS={2,21,41,61,81}
 // # NUM_CLIENTS={2,11,21}
 INTERVAL=100
 LAMBDA=500
-TEST_LENGTH=11
+TEST_LENGTH=7
 FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
@@ -41,13 +41,15 @@ latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=10000
+latency:LAMBDA=50000
 // # NOTE: 10 000 pkts/s = 91.1Mbps
+// # NOTE: 20 000 pkts/s = 182.2Mbps
+// # NOTE: 50 000 pkts/s = 496Mbps
 // # latency:LAMBDA=0.100
-latency:TEST_LENGTH=7
+latency:TEST_LENGTH=6
 latency:FALLBACK_DELAY=400
-// # latency:ADDITIONAL_DATA_SIZE=1100
-latency:ADDITIONAL_DATA_SIZE={0,500,1100}
+latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,500,1100}
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 data:NUM_CLIENTS=71
@@ -56,7 +58,7 @@ data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
 data:LAMBDA=100
-data:TEST_LENGTH=8
+data:TEST_LENGTH=7
 data:FALLBACK_DELAY=200
 data:ADDITIONAL_DATA_SIZE={0,500,1100,2200,3000}
 // # ----------------------- OTHER VARS -----------------------
@@ -75,8 +77,8 @@ WORKDIR=""
 CARGO_PATH=""
 
 
-// NOTE: the servers have 4 threads. They are set to cores 0-3 (3 included), CPUMAX is exclusive here
-%import@server cpuload CPUMIN=0 CPUMAX=4 TEST_LENGTH=11
+// NOTE: the servers have 2 threads. They are set to cores 0-1 (1 included), CPUMAX is exclusive here
+%import@server cpuload CPUMIN=0 CPUMAX=2 TEST_LENGTH=7
 
 %init
 
@@ -253,7 +255,7 @@ echo "Server running!"
 
 echo "EVENT server-up"
 
-SLEEP_LENGTH_SERVER=$(echo "10+${TEST_LENGTH}" | bc)
+SLEEP_LENGTH_SERVER=$(echo "3+${TEST_LENGTH}" | bc)
 echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 

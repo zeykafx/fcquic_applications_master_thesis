@@ -25,6 +25,7 @@ from style import (
     FCQUIC_FEC_MARKER,
     FCQUIC_LINESTYLE,
     FCQUIC_MARKER,
+    FONT_SIZE,
     LINEWIDTH,
     MARKERSIZE,
     TOKIO_QUICHE_COLOR,
@@ -48,7 +49,7 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
-def main(res_path, out_path, clip, inset=False):
+def main(res_path, out_path, clip, inset=False, no_title=False):
     data_df = pd.read_csv(res_path)
 
     topo_name = str(data_df["TOPO_CONF_NAME"][0]).replace('"', "")
@@ -84,13 +85,16 @@ def main(res_path, out_path, clip, inset=False):
             poisson_str,
             is_poisson,
             data_size,
-            inset,
+            inset=inset,
+            no_title=no_title,
         )
 
-    plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_mbps)
+    plot_mean_median_vs_data_size(
+        data_df, out_path, topo_name, poisson_str, bw_mbps, no_title
+    )
 
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
-    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str)
+    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
 
 
 def get_median_std_grouped_for_df(df):
@@ -119,7 +123,7 @@ def get_mean_std_grouped_for_df(df):
     return grouped
 
 
-def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
+def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     cpu_df = pd.read_csv(cpu_csv_path)
     if cpu_df.empty:
         print("no CPU data, skipping cpu plot")
@@ -133,7 +137,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     if not cpu_cols:
         print("no CPU date, skipping cpu plot")
         return
-        
+
     # instead of using the mean computed by the npf script, we compute it here because
     # somehow the npf computed mean doesn't always match this one... (missing data??)
     cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
@@ -169,13 +173,14 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     )
     grouped = grouped.sort_values("CURRENT_TEST")
 
-    
     grouped["protocol"] = grouped["CURRENT_TEST"].map(labels)
 
     sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(8, 8))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
-    
+    width = 6
+    height =7
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
     bars = ax.bar(
         grouped["protocol"],
         grouped["mean"],
@@ -189,15 +194,17 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     bar_labels = [
         f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
     ]
-    ax.bar_label(bars, labels=bar_labels, padding=5, fontsize=15)
+    ax.bar_label(bars, labels=bar_labels, padding=5)
 
     ax.set_ybound(0)
-    ax.set_xlabel("Protocol", fontsize=13)
-    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=13)
-    ax.set_title(
-        f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
-        fontsize=15,
-    )
+    ax.set_xlabel("Protocol",)
+    ax.set_ylabel("CPU utilization percentage",)
+    if not no_title:
+        ax.set_title(
+            f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+            fontsize=15,
+        )
+
     ax.tick_params(axis="x", rotation=20)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -207,7 +214,9 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     plt.close(fig)
 
 
-def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_mbps):
+def plot_mean_median_vs_data_size(
+    data_df, out_path, topo_name, poisson_str, bw_mbps, no_title
+):
     if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
         print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
         return
@@ -248,8 +257,10 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
             tokio_quiche_grouped = get_median_std_grouped_for_df(df_tokio_quiche)
 
         sns.set_style("whitegrid")
-        plt.figure(figsize=(8, 6))
-        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+        width = 7
+        height = 6
+        plt.figure(figsize=(width, height))
+        latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
         if len(fcquic_grouped) > 0:
             x = fcquic_grouped["ADDITIONAL_DATA_SIZE"]
@@ -370,36 +381,39 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
                 color=TOKIO_QUICHE_COLOR,
                 alpha=CONFIDENCE_BAND_OPACITY,
             )
-        if bw_mbps is not None:
-            data_sizes = sorted(data_df["ADDITIONAL_DATA_SIZE"].unique())
-            
-            # theoretical minimum = transmission delay across all links
-            # packet_size = ADDITIONAL_DATA_SIZE, 4 links in tiny topo
-            # transmission delay per link = (size_bytes * 8) / (bw_mbps * 1e6) in seconds
-            # total = 4 * transmission delay per link, to ms
-            num_links = 4  # HACK: must change for different topologies..., not ideal but oh well
-            theoretical_ms = [
-                num_links * (size * 8) / (bw_mbps * 1e6) * 1000 for size in data_sizes
-            ]
-            plt.plot(
-                data_sizes,
-                theoretical_ms,
-                label=f"Min latency ({bw_mbps} Mbps, {num_links} links)",
-                color="black",
-                linestyle=":",
-                lw=LINEWIDTH,
-                marker="x",
-                markersize=MARKERSIZE,
-            )
+        # if bw_mbps is not None:
+        #     data_sizes = sorted(data_df["ADDITIONAL_DATA_SIZE"].unique())
 
-        plt.xlabel("Additional data size (bytes)", fontsize=12)
-        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=12)
-        plt.title(
-            f"{mean_or_median.capitalize()} latency vs additional data size ({poisson_str}): {topo_name.replace('%', 'per')}",
-            fontsize=14,
-        )
-        # plt.ylim(bottom=0)
-        plt.legend()
+        #     # theoretical minimum = transmission delay across all links
+        #     # packet_size = ADDITIONAL_DATA_SIZE, 4 links in tiny topo
+        #     # transmission delay per link = (size_bytes * 8) / (bw_mbps * 1e6) in seconds
+        #     # total = 4 * transmission delay per link, to ms
+        #     num_links = 4  # HACK: must change for different topologies..., not ideal but oh well
+        #     theoretical_ms = [
+        #         num_links * (size * 8) / (bw_mbps * 1e6) * 1000 for size in data_sizes
+        #     ]
+        #     plt.plot(
+        #         data_sizes,
+        #         theoretical_ms,
+        #         label=f"Min latency ({bw_mbps} Mbps, {num_links} links)",
+        #         color="black",
+        #         linestyle=":",
+        #         lw=LINEWIDTH,
+        #         marker="x",
+        #         markersize=MARKERSIZE,
+        #     )
+
+        plt.xlabel("Additional data size (bytes)")
+        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
+        if not no_title:
+            plt.title(
+                f"{mean_or_median.capitalize()} latency vs additional data size ({poisson_str}): {topo_name.replace('%', 'per')}",
+                fontsize=FONT_SIZE,
+            )
+        plt.ylim(bottom=0)
+
+        # place legend at the top (code from https://matplotlib.org/stable/users/explain/axes/legend_guide.html#term-legend-key)
+        plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig(
@@ -409,7 +423,16 @@ def plot_mean_median_vs_data_size(data_df, out_path, topo_name, poisson_str, bw_
         plt.close()
 
 
-def _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=True):
+def _plot_ecdfs(
+    ax,
+    df_fcquic,
+    df_fcquic_fec,
+    df_baseline,
+    df_tcp,
+    df_tcp_no_tls,
+    df_tokio_quiche,
+    add_labels=True,
+):
     if len(df_fcquic) > 0:
         ax.ecdf(
             (df_fcquic["y_LATENCY"] / 1000),
@@ -461,7 +484,15 @@ def _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls
 
 
 def process_and_plot(
-    data_df, out_path, clip, topo_name, poisson_str, is_poisson, data_size, inset=False
+    data_df,
+    out_path,
+    clip,
+    topo_name,
+    poisson_str,
+    is_poisson,
+    data_size,
+    inset=False,
+    no_title=False,
 ):
     # remove outliers
     # NOTE: is this okay to do???
@@ -523,21 +554,34 @@ def process_and_plot(
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
-    fig = plt.figure(figsize=(8, 6))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+    width = 7
+    height= 5
+    fig = plt.figure(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
     ax = plt.gca()
-    _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=True)
+    _plot_ecdfs(
+        ax,
+        df_fcquic,
+        df_fcquic_fec,
+        df_baseline,
+        df_tcp,
+        df_tcp_no_tls,
+        df_tokio_quiche,
+        add_labels=True,
+    )
 
-    plt.ylabel("Probability of occurence", fontsize=12)
+    plt.ylabel("Probability of occurence")
 
     # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
-    plt.title(
-        f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')}{data_size_str} {'(clipped)' if clip else ''}",
-        fontsize=14,
-    )
-    plt.xlabel("Latency (ms)", fontsize=12)
+    if not no_title:
+        plt.title(
+            f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')}{data_size_str} {'(clipped)' if clip else ''}",
+            fontsize=FONT_SIZE,
+        )
+
+    plt.xlabel("Latency (ms)")
     # plt.xlim(left=0)
     plt.ylim(0, 1)
     if clip:
@@ -545,27 +589,42 @@ def process_and_plot(
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    
     # zoomed in inset
     if inset:
-        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42]) # type: ignore
+        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")
             spine.set_linewidth(1.0)
 
-        _plot_ecdfs(axins, df_fcquic, df_fcquic_fec, df_baseline,
-                    df_tcp, df_tcp_no_tls, df_tokio_quiche, add_labels=False)
+        _plot_ecdfs(
+            axins,
+            df_fcquic,
+            df_fcquic_fec,
+            df_baseline,
+            df_tcp,
+            df_tcp_no_tls,
+            df_tokio_quiche,
+            add_labels=False,
+        )
 
-        all_latencies = pd.concat([
-            df_fcquic["y_LATENCY"], df_fcquic_fec["y_LATENCY"],
-            df_baseline["y_LATENCY"], df_tcp["y_LATENCY"],
-            df_tcp_no_tls["y_LATENCY"], df_tokio_quiche["y_LATENCY"],
-        ]) / 1000
+        all_latencies = (
+            pd.concat(
+                [
+                    df_fcquic["y_LATENCY"],
+                    df_fcquic_fec["y_LATENCY"],
+                    df_baseline["y_LATENCY"],
+                    df_tcp["y_LATENCY"],
+                    df_tcp_no_tls["y_LATENCY"],
+                    df_tokio_quiche["y_LATENCY"],
+                ]
+            )
+            / 1000
+        )
 
         # choose the latencies to show by setting x_min to the start (e.g., min or quantile(0.8)...)
         # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
-        # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
+        # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies).
         x_min = float(all_latencies.quantile(0.90))
         x_max = float(all_latencies.max())
         axins.set_xlim(x_min, x_max)
@@ -574,9 +633,11 @@ def process_and_plot(
         axins.tick_params(labelsize=8)
         axins.grid(True, alpha=0.3)
 
-        ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
+        ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
+        # ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
     else:
-        ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
+        ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
+        # ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
 
     fig.tight_layout()
 
@@ -605,10 +666,14 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--no-title",
+        action="store_true",
+    )
+    parser.add_argument(
         "--inset",
         action="store_true",
         help="add a zoomed in inset for the cdfs",
     )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path, args.clip, args.inset)
+    main(args.file_path, args.out_path, args.clip, args.inset, args.no_title)
