@@ -8,11 +8,11 @@ topology:
             use_asm: false
 
         links:
-            bandwidth: "100Mbit"
+            bandwidth: "10Gbit"
             loss: "0%"
             burst: "0%"
             delay: "1ms"
-            buffer: 100000
+            buffer: 1000000000
             multicast: true
 
     routers:

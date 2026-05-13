@@ -14,17 +14,12 @@ from topo import Topology
 
 verbose = False
 
-bandwidth_source = "100Mbit"
-bandwidth_high = "100Mbit"
-bandwidth_medium = "50Mbit"
-bandwidth_low = "10Mbit"
-
-default_bandwidth = bandwidth_source
+default_bandwidth = "1Gbit"
 default_multicast_enabled_router = True
 default_multicast_enabled = True
 default_multicast_enabled_link = True
 default_delay = "1ms"
-default_buffer = 10000
+default_buffer = 100000
 default_loss = "0%"
 default_loss_burst_percentage = "10%"
 default_rp_id = 1
@@ -96,18 +91,7 @@ def parse_config_file(
 
 
 def parse_defaults(defaults: dict):
-    global \
-        default_multicast_enabled, \
-        default_bandwidth, \
-        default_buffer, \
-        default_delay, \
-        default_loss, \
-        default_loss_burst_percentage, \
-        default_multicast_enabled_link, \
-        default_rp_id, \
-        default_asm_prefix, \
-        default_use_asm, \
-        default_router_name_prefix
+    global default_multicast_enabled, default_bandwidth, default_buffer, default_delay, default_loss, default_loss_burst_percentage, default_multicast_enabled_link, default_rp_id, default_asm_prefix, default_use_asm, default_router_name_prefix
     if "routers" in defaults:
         if "multicast" in defaults["routers"]:
             default_multicast_enabled = defaults["routers"]["multicast"]

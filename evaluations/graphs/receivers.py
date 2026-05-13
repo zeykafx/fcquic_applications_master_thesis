@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, LogLocator
 import numpy as np
 import pandas as pd
-from brokenaxes import brokenaxes
 from style import (
     BASELINE_QUIC_COLOR,
     BASELINE_QUIC_LINESTYLE,
@@ -63,170 +62,147 @@ def plot_average_latency_vs_receivers(
     poisson_str,
     add_data,
     out_path,
-    log: bool = False
+    log: bool = False,
+    no_title=False,
 ):
-    height = 11
+    height = 7
     width = 11
-    plt.figure(figsize=(width, height))
+    fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-    bax = brokenaxes(hspace=0.10)
+    ax.set_ybound(1 if log else 0)
+
     if log:
-        for ax in bax.axs:
-            ax.set_yscale("log")
-            ax.yaxis.set_major_locator(LogLocator(base=10.0, numticks=15)) 
-            ax.yaxis.set_major_formatter(ScalarFormatter())
-            ax.tick_params(axis="y", which="minor", labelsize=8)
-    
-    # bax = brokenaxes(ylims=((0, 0.5), (5.5, 45)), hspace=0.10)
+        ax.set_yscale("log")
+        ax.yaxis.set_major_locator(LogLocator(base=10.0, numticks=15))
+        ax.yaxis.set_major_formatter(ScalarFormatter())
 
     # FCQUIC
     if len(fcquic_grouped) > 0:
-        x_fcquic = fcquic_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_fcquic,
+        ax.errorbar(
+            fcquic_grouped["NUM_CLIENTS"],
             fcquic_grouped[mean_or_median],
+            yerr=fcquic_grouped["ci"],
             label="FC-QUIC",
             color=FCQUIC_COLOR,
             linestyle=FCQUIC_LINESTYLE,
             marker=FCQUIC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_fcquic,
-            fcquic_grouped["ci_lower"],
-            fcquic_grouped["ci_upper"],
-            color=FCQUIC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # FCQUIC-FEC
     if len(fcquic_fec_grouped) > 0:
-        x_fcquic_fec = fcquic_fec_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_fcquic_fec,
+        ax.errorbar(
+            fcquic_fec_grouped["NUM_CLIENTS"],
             fcquic_fec_grouped[mean_or_median],
+            yerr=fcquic_fec_grouped["ci"],
             label="FC-QUIC with FEC",
             color=FCQUIC_FEC_COLOR,
             linestyle=FCQUIC_FEC_LINESTYLE,
             marker=FCQUIC_FEC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_fcquic_fec,
-            fcquic_fec_grouped["ci_lower"],
-            fcquic_fec_grouped["ci_upper"],
-            color=FCQUIC_FEC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # Baseline QUIC
     if len(baseline_grouped) > 0:
-        x_baseline = baseline_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_baseline,
+        ax.errorbar(
+            baseline_grouped["NUM_CLIENTS"],
             baseline_grouped[mean_or_median],
+            yerr=baseline_grouped["ci"],
             label="Baseline QUIC",
             color=BASELINE_QUIC_COLOR,
             linestyle=BASELINE_QUIC_LINESTYLE,
             marker=BASELINE_QUIC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_baseline,
-            baseline_grouped["ci_lower"],
-            baseline_grouped["ci_upper"],
-            color=BASELINE_QUIC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # TCP
     if len(tcp_grouped) > 0:
-        x_tcp = tcp_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_tcp,
+        ax.errorbar(
+            tcp_grouped["NUM_CLIENTS"],
             tcp_grouped[mean_or_median],
+            yerr=tcp_grouped["ci"],
             label="Baseline TCP (+TLS)",
             color=BASELINE_TCP_COLOR,
             linestyle=BASELINE_TCP_LINESTYLE,
             marker=BASELINE_TCP_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tcp,
-            tcp_grouped["ci_lower"],
-            tcp_grouped["ci_upper"],
-            color=BASELINE_TCP_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # TCP NO TLS
     if len(tcp_no_tls_grouped) > 0:
-        x_tcp_no_tls = tcp_no_tls_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_tcp_no_tls,
+        ax.errorbar(
+            tcp_no_tls_grouped["NUM_CLIENTS"],
             tcp_no_tls_grouped[mean_or_median],
+            yerr=tcp_no_tls_grouped["ci"],
             label="Baseline TCP (NO TLS)",
             color=BASELINE_TCP_NO_TLS_COLOR,
             linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
             marker=BASELINE_TCP_NO_TLS_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tcp_no_tls,
-            tcp_no_tls_grouped["ci_lower"],
-            tcp_no_tls_grouped["ci_upper"],
-            color=BASELINE_TCP_NO_TLS_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # Tokio-quiche
     if len(tokio_quiche_grouped) > 0:
-        x_tokio_quiche = tokio_quiche_grouped["NUM_CLIENTS"]
-        bax.plot(
-            x_tokio_quiche,
+        ax.errorbar(
+            tokio_quiche_grouped["NUM_CLIENTS"],
             tokio_quiche_grouped[mean_or_median],
+            yerr=tokio_quiche_grouped["ci"],
             label="Tokio-quiche",
             color=TOKIO_QUICHE_COLOR,
             linestyle=TOKIO_QUICHE_LINESTYLE,
             marker=TOKIO_QUICHE_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tokio_quiche,
-            tokio_quiche_grouped["ci_lower"],
-            tokio_quiche_grouped["ci_upper"],
-            color=TOKIO_QUICHE_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
-    bax.set_xlabel("Number of clients", fontsize=12, labelpad=25)
-
-    bax.set_ylabel(
-        f"{mean_or_median.capitalize()} Latency ({"Log scale " if log else ""}ms)", fontsize=12, labelpad=40
+    ax.set_xlabel("Number of clients")
+    ax.set_ylabel(
+        f"{mean_or_median.capitalize()} Latency ({"Log scale " if log else ""}ms)",
     )
 
-    bax.grid(True, alpha=0.3)
-    bax.legend(loc="upper left")
-    plt.title(
-        f"{mean_or_median.capitalize()} latency vs number of clients ({poisson_str}) (additional data: {add_data}B)",
-        fontsize=14,
+    ax.grid(True, alpha=0.3)
+
+    ax.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=2,
+        mode="expand",
+        borderaxespad=0.0,
     )
-    # plt.savefig(
-    #     f"{out_path}/avg_lat_{clients_range_str}_{topo_name}_{poisson_str}.png",
-    #     dpi=350,
-    #     bbox_inches="tight",
-    # )
-    plt.savefig(
+    if not no_title:
+        ax.set_title(
+            f"{mean_or_median.capitalize()} latency vs number of clients ({poisson_str}) (additional data: {add_data}B)",
+        )
+
+    fig.savefig(
         f"{out_path}/{"log_" if log else ""}{mean_or_median}_lat_{clients_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
+    plt.close(fig)
 
 
 def get_median_std_grouped_for_df(df):
@@ -255,7 +231,112 @@ def get_mean_std_grouped_for_df(df):
     return grouped
 
 
-def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
+def plot_cpu_vs_receivers(
+    cpu_csv_path, out_path, clients_range_str, topo_name, poisson_str, no_title
+):
+    cpu_df = pd.read_csv(cpu_csv_path)
+    if cpu_df.empty:
+        print("no CPU data, skipping cpu line plot")
+        return
+
+    cpu_df["CURRENT_TEST"] = cpu_df["CURRENT_TEST"].str.replace('"', "")
+
+    cpu_cols = [c for c in cpu_df.columns if c.startswith("y_CPU-")]
+    if not cpu_cols:
+        print("no CPU data, skipping cpu line plot")
+        return
+
+    if "NUM_CLIENTS" not in cpu_df.columns:
+        print("no NUM_CLIENTS column in CPU data, skipping cpu line plot")
+        return
+
+    cpu_df["NUM_CLIENTS"] = cpu_df["NUM_CLIENTS"].astype(int)
+    cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
+
+    implementations = {
+        "FCQUIC": ("FC-QUIC", FCQUIC_COLOR, FCQUIC_LINESTYLE, FCQUIC_MARKER),
+        "TCP": (
+            "Baseline TCP (+TLS)",
+            BASELINE_TCP_COLOR,
+            BASELINE_TCP_LINESTYLE,
+            BASELINE_TCP_MARKER,
+        ),
+        "TCP_NO_TLS": (
+            "Baseline TCP (NO TLS)",
+            BASELINE_TCP_NO_TLS_COLOR,
+            BASELINE_TCP_NO_TLS_LINESTYLE,
+            BASELINE_TCP_NO_TLS_MARKER,
+        ),
+        "TOKIO_QUICHE": (
+            "Tokio-quiche",
+            TOKIO_QUICHE_COLOR,
+            TOKIO_QUICHE_LINESTYLE,
+            TOKIO_QUICHE_MARKER,
+        ),
+    }
+
+    height = 5
+    width = 11
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    for test_key, (label, color, linestyle, marker) in implementations.items():
+        df_impl = cpu_df[cpu_df["CURRENT_TEST"] == test_key]
+        if df_impl.empty:
+            continue
+
+        grouped = (
+            df_impl.groupby("NUM_CLIENTS")["mean_utilization"]
+            .agg(["mean", "std", "count"])
+            .reset_index()
+        )
+        grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+        grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
+        grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
+
+        ax.errorbar(
+            grouped["NUM_CLIENTS"],
+            grouped["mean"],
+            yerr=grouped["ci"],
+            label=label,
+            color=color,
+            linestyle=linestyle,
+            marker=marker,
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
+        )
+
+    ax.set_xlabel("Number of clients")
+    ax.set_ylabel("Mean CPU utilization (percentage)")
+    ax.set_ybound(0, 100)
+    ax.grid(True, alpha=0.3)
+    # ax.legend(loc="upper left")
+    # place legend above the graph
+
+    if not no_title:
+        ax.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.0,
+        )
+        ax.set_title(
+            f"Server CPU utilization vs number of clients ({poisson_str})",
+        )
+
+    fig.tight_layout()
+    fig.savefig(
+        f"{out_path}/cpu_vs_receivers_{clients_range_str}_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
+def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     cpu_df = pd.read_csv(cpu_csv_path)
     if cpu_df.empty:
         print("no CPU data, skipping cpu plot")
@@ -274,19 +355,15 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     # somehow the npf computed mean doesn't always match this one... (missing data??)
     cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
 
-    order = ["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    order = ["FCQUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
     labels = {
         "FCQUIC": "FC-QUIC",
-        "FCQUIC_FEC": "FC-QUIC with FEC",
-        "QUIC": "Baseline QUIC",
         "TCP": "Baseline TCP (+TLS)",
         "TCP_NO_TLS": "Baseline TCP (NO TLS)",
         "TOKIO_QUICHE": "Baseline Tokio-quiche",
     }
     palette = {
         "FCQUIC": FCQUIC_COLOR,
-        "FCQUIC_FEC": FCQUIC_FEC_COLOR,
-        "QUIC": BASELINE_QUIC_COLOR,
         "TCP": BASELINE_TCP_COLOR,
         "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
         "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
@@ -305,14 +382,14 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     )
     grouped = grouped.sort_values("CURRENT_TEST")
 
-    grouped["protocol"] = grouped["CURRENT_TEST"].map(labels)
+    grouped["implementation"] = grouped["CURRENT_TEST"].map(labels)
 
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(8, 8))
     latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
 
     bars = ax.bar(
-        grouped["protocol"],
+        grouped["implementation"],
         grouped["mean"],
         yerr=grouped["std"],
         color=[palette[v] for v in grouped["CURRENT_TEST"]],
@@ -324,16 +401,17 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     bar_labels = [
         f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
     ]
-    ax.bar_label(bars, labels=bar_labels, padding=5, fontsize=15)
+    ax.bar_label(bars, labels=bar_labels, padding=5)
 
     ax.set_ybound(0)
-    ax.set_xlabel("Protocol", fontsize=13)
-    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=13)
-    ax.set_title(
-        f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
-        fontsize=15,
-    )
-    ax.tick_params(axis="x", rotation=20)
+    ax.set_xlabel("Implementation")
+    ax.set_ylabel("CPU utilization percentage")
+    if not no_title:
+        ax.set_title(
+            f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+        )
+
+    ax.tick_params(axis="x", rotation=15)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(
@@ -342,7 +420,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str):
     plt.close(fig)
 
 
-def main(res_path, out_path):
+def main(res_path, out_path, no_title=False):
     data_df = pd.read_csv(res_path)
     data_df["NUM_CLIENTS"] = data_df["NUM_CLIENTS"].astype(int)
 
@@ -364,7 +442,7 @@ def main(res_path, out_path):
 
     # remove outliers
     # TODO: check if this is okay
-    q = data_df["y_LATENCY"].quantile(0.99)
+    q = data_df["y_LATENCY"].quantile(0.999)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]
 
@@ -428,6 +506,7 @@ def main(res_path, out_path):
             additional_data,
             out_path,
             log,
+            no_title,
         )
 
     mean_baseline_grouped = get_mean_std_grouped_for_df(df_baseline)
@@ -453,17 +532,26 @@ def main(res_path, out_path):
             additional_data,
             out_path,
             log,
+            no_title,
         )
 
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
-    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str)
+    plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
+    plot_cpu_vs_receivers(
+        cpu_csv_path, out_path, clients_range_str, topo_name, poisson_str, no_title
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("plots")
     parser.add_argument("file_path", type=file_path)
     parser.add_argument("out_path", type=dir_path)
-    # parser.add_argument("-n", "--name", type=str,)
+
+    parser.add_argument(
+        "--no-title",
+        action="store_true",
+        help="don't add a title to graphs",
+    )
     args = parser.parse_args()
 
-    main(args.file_path, args.out_path)
+    main(args.file_path, args.out_path, args.no_title)

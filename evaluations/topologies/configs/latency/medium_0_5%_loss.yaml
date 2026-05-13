@@ -2,17 +2,17 @@ topology:
     defaults:
         routers:
             multicast: true
-            rp_id: 3
+            rp_id: 1
             asm_prefix: "224.0.0.0/4"
             name_prefix: "r"
             use_asm: false
 
         links:
-            bandwidth: "100Mbit"
+            bandwidth: "10Gbit"
             loss: "0.5%"
-            burst: "15%"
-            delay: "3ms"
-            buffer: 100000
+            burst: "25%"
+            delay: "1ms"
+            buffer: 10000000
             multicast: true
 
     routers:
@@ -31,11 +31,35 @@ topology:
 
     servers: ["server1"]
     clients:
-        num: 4
+        num: 28
 
     links:
         - endpoints: ["r1", "server1"]
-        - endpoints: ["r5", "client1"]
-        - endpoints: ["r6", "client2"]
-        - endpoints: ["r7", "client3"]
+        - endpoints: ["r1", "client1"]
+        - endpoints: ["r2", "client2"]
+        - endpoints: ["r3", "client3"]
         - endpoints: ["r4", "client4"]
+        - endpoints: ["r5", "client5"]
+        - endpoints: ["r6", "client6"]
+        - endpoints: ["r7", "client7"]
+        - endpoints: ["r1", "client8"]
+        - endpoints: ["r2", "client9"]
+        - endpoints: ["r3", "client10"]
+        - endpoints: ["r4", "client11"]
+        - endpoints: ["r5", "client12"]
+        - endpoints: ["r6", "client13"]
+        - endpoints: ["r7", "client14"]
+        - endpoints: ["r1", "client15"]
+        - endpoints: ["r2", "client16"]
+        - endpoints: ["r3", "client17"]
+        - endpoints: ["r4", "client18"]
+        - endpoints: ["r5", "client19"]
+        - endpoints: ["r6", "client20"]
+        - endpoints: ["r7", "client21"]
+        - endpoints: ["r1", "client22"]
+        - endpoints: ["r2", "client23"]
+        - endpoints: ["r3", "client24"]
+        - endpoints: ["r4", "client25"]
+        - endpoints: ["r5", "client26"]
+        - endpoints: ["r6", "client27"]
+        - endpoints: ["r7", "client28"]

@@ -1,0 +1,43 @@
+topology:
+    defaults:
+        routers:
+            multicast: true
+            rp_id: 1
+            asm_prefix: "224.0.0.0/4"
+            name_prefix: "r"
+            use_asm: false
+
+        links:
+            bandwidth: "10Gbit"
+            loss: "0%"
+            burst: "0%"
+            delay: "1ms"
+            buffer: 10000000
+            multicast: true
+
+    routers:
+        num: 7
+        links:
+            - endpoints: ["r1", "r2"]
+            - endpoints: ["r1", "r3"]
+            - endpoints: ["r1", "r5"]
+            - endpoints: ["r2", "r4"]
+            - endpoints: ["r3", "r4"]
+            - endpoints: ["r3", "r7"]
+            - endpoints: ["r3", "r5"]
+            - endpoints: ["r5", "r6"]
+            - endpoints: ["r6", "r7"]
+            - endpoints: ["r7", "r4"]
+
+    servers: ["server1"]
+    clients: ["client_1_2_3_4", "client_5_6_7_8", "client_9_10_11_12", "client_13_14_15_16", "client_17_18_19_20", "client_21_22_23_24", "client_25_26_27_28"]
+
+    links:
+        - endpoints: ["r1", "server1"]
+        - endpoints: ["r1", "client_1_2_3_4"]
+        - endpoints: ["r2", "client_5_6_7_8"]
+        - endpoints: ["r3", "client_9_10_11_12"]
+        - endpoints: ["r4", "client_13_14_15_16"]
+        - endpoints: ["r5", "client_17_18_19_20"]
+        - endpoints: ["r6", "client_21_22_23_24"]
+        - endpoints: ["r7", "client_25_26_27_28"]

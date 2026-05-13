@@ -89,8 +89,16 @@ def main(res_path, out_path, clip, inset=False, no_title=False):
             no_title=no_title,
         )
 
-    plot_mean_median_vs_data_size(
-        data_df, out_path, topo_name, poisson_str, bw_mbps, no_title
+    if len(additional_data_sizes) > 1:
+        plot_mean_median_vs_data_size(
+            data_df, out_path, topo_name, poisson_str, bw_mbps, no_title
+        )
+
+    plot_median_latency_bar(
+        data_df, out_path, topo_name, poisson_str, no_title, mean_or_median="median"
+    )
+    plot_median_latency_bar(
+        data_df, out_path, topo_name, poisson_str, no_title, mean_or_median="mean"
     )
 
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
@@ -105,7 +113,7 @@ def get_median_std_grouped_for_df(df):
     )
     grouped = grouped.droplevel(axis=1, level=0).reset_index()
     grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
-    grouped["ci_lower"] = grouped["median"] - grouped["ci"]
+    grouped["ci_lower"] = (grouped["median"] - grouped["ci"]).clip(lower=0)
     grouped["ci_upper"] = grouped["median"] + grouped["ci"]
     return grouped
 
@@ -121,6 +129,88 @@ def get_mean_std_grouped_for_df(df):
     grouped["ci_lower"] = grouped["mean"] - grouped["ci"]
     grouped["ci_upper"] = grouped["mean"] + grouped["ci"]
     return grouped
+
+
+def plot_median_latency_bar(
+    data_df, out_path, topo_name, poisson_str, no_title, mean_or_median="median"
+):
+    q = data_df["y_LATENCY"].quantile(0.999)
+    data_df = data_df[data_df["y_LATENCY"] < q].copy()
+    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+    data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
+
+    order = ["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    labels = {
+        "FCQUIC": "FC-QUIC",
+        "FCQUIC_FEC": "FC-QUIC with FEC",
+        "QUIC": "Baseline QUIC",
+        "TCP": "Baseline TCP (+TLS)",
+        "TCP_NO_TLS": "Baseline TCP (NO TLS)",
+        "TOKIO_QUICHE": "Baseline Tokio-quiche",
+    }
+    palette = {
+        "FCQUIC": FCQUIC_COLOR,
+        "FCQUIC_FEC": FCQUIC_FEC_COLOR,
+        "QUIC": BASELINE_QUIC_COLOR,
+        "TCP": BASELINE_TCP_COLOR,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
+        "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+    }
+
+    grouped = (
+        data_df[["CURRENT_TEST", "y_LATENCY"]]
+        .groupby("CURRENT_TEST")["y_LATENCY"]
+        .agg([mean_or_median, "std"])
+        .reset_index()
+    )
+
+    grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
+    grouped["CURRENT_TEST"] = pd.Categorical(
+        grouped["CURRENT_TEST"], categories=order, ordered=True
+    )
+    grouped = grouped.sort_values("CURRENT_TEST")
+    grouped["implementation"] = grouped["CURRENT_TEST"].map(labels)
+
+    label_cap = mean_or_median.capitalize()
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 7
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    bars = ax.bar(
+        grouped["implementation"],
+        grouped[mean_or_median],
+        yerr=grouped["std"],
+        color=[palette[v] for v in grouped["CURRENT_TEST"]],
+        width=0.5,
+        edgecolor="black",
+        capsize=5,
+    )
+
+    bar_labels = [
+        f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped[mean_or_median], grouped["std"])
+    ]
+    ax.bar_label(bars, labels=bar_labels, padding=5)
+
+    ax.set_ybound(0)
+    ax.set_xlabel("Implementation")
+    ax.set_ylabel(f"{label_cap} latency (ms)")
+    if not no_title:
+        ax.set_title(
+            f"{label_cap} latency by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
+            fontsize=15,
+        )
+
+    ax.tick_params(axis="x", rotation=20)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(
+        f"{out_path}/{mean_or_median}_latency_bar_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
+    )
+    plt.close(fig)
 
 
 def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
@@ -177,7 +267,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
 
     sns.set_style("whitegrid")
     width = 6
-    height =7
+    height = 7
     fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -197,8 +287,12 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     ax.bar_label(bars, labels=bar_labels, padding=5)
 
     ax.set_ybound(0)
-    ax.set_xlabel("Protocol",)
-    ax.set_ylabel("CPU utilization percentage",)
+    ax.set_xlabel(
+        "Protocol",
+    )
+    ax.set_ylabel(
+        "CPU utilization percentage",
+    )
     if not no_title:
         ax.set_title(
             f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
@@ -222,7 +316,7 @@ def plot_mean_median_vs_data_size(
         return
 
     # remove outliers
-    q = data_df["y_LATENCY"].quantile(0.995)
+    q = data_df["y_LATENCY"].quantile(0.999)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q].copy()
 
@@ -413,7 +507,13 @@ def plot_mean_median_vs_data_size(
         plt.ylim(bottom=0)
 
         # place legend at the top (code from https://matplotlib.org/stable/users/explain/axes/legend_guide.html#term-legend-key)
-        plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
+        plt.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.0,
+        )
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig(
@@ -496,7 +596,7 @@ def process_and_plot(
 ):
     # remove outliers
     # NOTE: is this okay to do???
-    q = data_df["y_LATENCY"].quantile(0.995)
+    q = data_df["y_LATENCY"].quantile(0.999)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]
 
@@ -555,7 +655,7 @@ def process_and_plot(
 
     sns.set_style("whitegrid")
     width = 7
-    height= 5
+    height = 5
     fig = plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -582,10 +682,8 @@ def process_and_plot(
         )
 
     plt.xlabel("Latency (ms)")
-    # plt.xlim(left=0)
     plt.ylim(0, 1)
-    if clip:
-        plt.xlim(left=21, right=26)
+
     plt.legend()
     plt.grid(True, alpha=0.3)
 
@@ -633,10 +731,22 @@ def process_and_plot(
         axins.tick_params(labelsize=8)
         axins.grid(True, alpha=0.3)
 
-        ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
+        ax.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.0,
+        )
         # ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
     else:
-        ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left', ncols=2, mode="expand", borderaxespad=0.)
+        ax.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.0,
+        )
         # ax.legend(loc="lower right", fontsize=10, framealpha=0.9)
 
     fig.tight_layout()

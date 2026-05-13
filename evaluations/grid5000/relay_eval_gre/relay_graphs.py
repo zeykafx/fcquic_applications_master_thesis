@@ -41,7 +41,7 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
-def main(res_path, out_path, name, inset, ack_rate_path, cpu_csv_path):
+def main(res_path, out_path, name, inset, ack_rate_path, cpu_csv_path, no_title=False):
 
     data_df = pd.read_csv(res_path)
 
@@ -66,13 +66,14 @@ def main(res_path, out_path, name, inset, ack_rate_path, cpu_csv_path):
             name,
             data_size,
             inset,
+            no_title,
         )
 
     copy_data = data_df.copy()
-    plot_mean_median_latency(copy_data, out_path, name)
-    plot_mean_median_vs_data_size(data_df, out_path, name)
-    plot_ack_rate_graphs(ack_rate_path, out_path, name)
-    plot_cpu_load(cpu_csv_path, out_path, name)
+    plot_mean_median_latency(copy_data, out_path, name, no_title)
+    plot_mean_median_vs_data_size(data_df, out_path, name, no_title)
+    plot_ack_rate_graphs(ack_rate_path, out_path, name, no_title)
+    plot_cpu_load(cpu_csv_path, out_path, name, no_title)
 
 
 def get_median_std_grouped_for_df(df):
@@ -101,7 +102,7 @@ def get_mean_std_grouped_for_df(df):
     return grouped
 
 
-def plot_ack_rate_graphs(ack_rates_path, out_path, name):
+def plot_ack_rate_graphs(ack_rates_path, out_path, name, no_title):
 
     ack_files = {
         "none": f"{ack_rates_path}none.csv",
@@ -156,11 +157,12 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
     )
 
     labels = [f"{m:.3f}" for m in df["ack_rate_mbps"]]
-    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
+    ax.bar_label(bars, labels=labels, padding=5)
 
-    ax.set_xlabel("Relay implementation", fontsize=15)
-    ax.set_ylabel(f"ACK rate (MB/s)", fontsize=15)
-    ax.set_title("ACK rate (in MB/s) by relay implementation", fontsize=15)
+    ax.set_xlabel("Relay implementation")
+    ax.set_ylabel(f"ACK rate (Mbits/s)")
+    if not no_title:
+        ax.set_title("ACK rate (in Mbits/s) by relay implementation")
     ax.set_ylim(0)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -169,6 +171,8 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
         bbox_inches="tight",
     )
     plt.close()
+
+    # number of ACK packets -----------------
 
     fig, ax = plt.subplots(figsize=(6, 7))
     latexify(nb_subplots_line=1, fig_height=6, fig_width=7)
@@ -181,14 +185,15 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
     )
 
     labels = [f"{m:.3f}" for m in df["num_acks"]]
-    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
+    ax.bar_label(bars, labels=labels, padding=5)
 
-    ax.set_xlabel("Relay implementation", fontsize=15)
-    ax.set_ylabel(f"Number of ACK frames", fontsize=15)
-    ax.set_title(
-        "Number of ACK frames received by FCQUIC source with/without relays",
-        fontsize=15,
-    )
+    ax.set_xlabel("Relay implementation")
+    ax.set_ylabel(f"Number of ACK frames")
+    if not no_title:
+        ax.set_title(
+            "Number of ACK frames received by FCQUIC source with/without relays",
+        )
+
     ax.set_ylim(0)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -199,7 +204,7 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name):
     plt.close()
 
 
-def plot_cpu_load(cpu_csv_path, out_path, name):
+def plot_cpu_load(cpu_csv_path, out_path, name, no_title):
     cpu_df = pd.read_csv(cpu_csv_path)
     if cpu_df.empty:
         print("no CPU data, skipping cpu plot")
@@ -253,13 +258,13 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
     )
 
     labels = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])]
-    ax.bar_label(bars, labels=labels, padding=5, fontsize=15)
+    ax.bar_label(bars, labels=labels, padding=5)
 
-    ax.set_xlabel("Relay implementation", fontsize=13)
-    ax.set_ylabel("CPU utilization percentage\n(mean over observed cores)", fontsize=13)
-    ax.set_title(
-        "FCQUIC Source CPU Load with different relay implementations", fontsize=15
-    )
+    ax.set_xlabel("Relay implementation")
+    ax.set_ylabel("CPU utilization percentage")
+    if not no_title:
+        ax.set_title("FCQUIC Source CPU Load with different relay implementations")
+
     # ax.set_ylim(0, 100)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -267,7 +272,7 @@ def plot_cpu_load(cpu_csv_path, out_path, name):
     plt.close(fig)
 
 
-def plot_mean_median_latency(data_df, out_path, name):
+def plot_mean_median_latency(data_df, out_path, name, no_title):
     # q = data_df["y_LATENCY"].quantile(0.995)
     # print(f"Outlier threshold: {q}")
     # data_df = data_df[data_df["y_LATENCY"] < q].copy()
@@ -332,14 +337,14 @@ def plot_mean_median_latency(data_df, out_path, name):
             f"{m:.3f} +- {s:.2f}"
             for m, s in zip(grouped[mean_or_median], grouped["std"])
         ]
-        ax.bar_label(bars, labels=labels_axes, padding=5, fontsize=15)
+        ax.bar_label(bars, labels=labels_axes, padding=5)
 
         ax.set_xlabel("Relay implementation", fontsize=13)
-        ax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=13)
-        ax.set_title(
-            f"{mean_or_median.capitalize()} latency vs Relay Implementation",
-            fontsize=15,
-        )
+        ax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
+        if not no_title:
+            ax.set_title(
+                f"{mean_or_median.capitalize()} latency vs Relay Implementation",
+            )
         ax.set_ylim(0)
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
@@ -350,7 +355,7 @@ def plot_mean_median_latency(data_df, out_path, name):
         plt.close(fig)
 
 
-def plot_mean_median_vs_data_size(data_df, out_path, name):
+def plot_mean_median_vs_data_size(data_df, out_path, name, no_title):
     if "ADDITIONAL_DATA_SIZE" not in data_df.columns:
         print("No ADDITIONAL_DATA_SIZE column found, skipping mean/median plot.")
         return
@@ -449,12 +454,12 @@ def plot_mean_median_vs_data_size(data_df, out_path, name):
                 alpha=CONFIDENCE_BAND_OPACITY,
             )
 
-        plt.xlabel("Additional data size (bytes)", fontsize=13)
-        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", fontsize=13)
-        plt.title(
-            f"{mean_or_median.capitalize()} latency vs additional data size",
-            fontsize=15,
-        )
+        plt.xlabel("Additional data size (bytes)")
+        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
+        if not no_title:
+            plt.title(
+                f"{mean_or_median.capitalize()} latency vs additional data size",
+            )
         # plt.ylim(bottom=0)
         plt.legend()
         plt.grid(True, alpha=0.3)
@@ -493,7 +498,7 @@ def _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
         )
 
 
-def process_and_plot(data_df, out_path, name, data_size, inset=False):
+def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=False):
     # remove outliers
     # q = data_df["y_LATENCY"].quantile(0.995)
     # print(f"Outlier threshold: {q}")
@@ -535,15 +540,16 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False):
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
-    plt.ylabel("Probability of occurence", fontsize=15)
+    plt.ylabel("Probability of occurence")
 
     # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
-    plt.title(
-        f"Cumulative distribution of latency, {data_size_str}",
-        fontsize=15,
-    )
-    plt.xlabel("Latency (ms)", fontsize=15)
+    if not no_title:
+        plt.title(
+            f"Cumulative distribution of latency, {data_size_str}",
+        )
+
+    plt.xlabel("Latency (ms)")
     # plt.xlim(left=0)
     plt.ylim(0, 1)
 
@@ -613,6 +619,12 @@ if __name__ == "__main__":
     parser.add_argument("cpu_csv_path", type=file_path)
 
     parser.add_argument(
+        "--no-title",
+        action="store_true",
+        help="don't add a title to graphs",
+    )
+
+    parser.add_argument(
         "--inset",
         action="store_true",
         help="add a zoomed in inset for the cdfs",
@@ -626,4 +638,5 @@ if __name__ == "__main__":
         args.inset,
         args.ack_rate_path,
         args.cpu_csv_path,
+        args.no_title,
     )

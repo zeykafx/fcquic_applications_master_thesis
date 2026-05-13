@@ -18,7 +18,6 @@ from style import (
     BASELINE_TCP_NO_TLS_COLOR,
     BASELINE_TCP_NO_TLS_LINESTYLE,
     BASELINE_TCP_NO_TLS_MARKER,
-    CONFIDENCE_BAND_OPACITY,
     FCQUIC_COLOR,
     FCQUIC_FEC_COLOR,
     FCQUIC_FEC_LINESTYLE,
@@ -62,8 +61,8 @@ def plot_avg_lat_vs_add_size(
     out_path,
     no_title,
 ):
-    height = 8
-    width = 7
+    height = 6
+    width = 9
     plt.figure(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -72,128 +71,104 @@ def plot_avg_lat_vs_add_size(
 
     # FCQUIC
     if len(fcquic_grouped) > 0:
-        x_fcquic = fcquic_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_fcquic,
+        bax.errorbar(
+            fcquic_grouped["ADDITIONAL_DATA_SIZE"],
             fcquic_grouped[mean_or_median],
+            yerr=fcquic_grouped["ci"],
             label="FC-QUIC",
             color=FCQUIC_COLOR,
             linestyle=FCQUIC_LINESTYLE,
             marker=FCQUIC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_fcquic,
-            fcquic_grouped["ci_lower"],
-            fcquic_grouped["ci_upper"],
-            color=FCQUIC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # FCQUIC-FEC
     if len(fcquic_fec_grouped) > 0:
-        x_fcquic_fec = fcquic_fec_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_fcquic_fec,
+        bax.errorbar(
+            fcquic_fec_grouped["ADDITIONAL_DATA_SIZE"],
             fcquic_fec_grouped[mean_or_median],
+            yerr=fcquic_fec_grouped["ci"],
             label="FC-QUIC with FEC",
             color=FCQUIC_FEC_COLOR,
             linestyle=FCQUIC_FEC_LINESTYLE,
             marker=FCQUIC_FEC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_fcquic_fec,
-            fcquic_fec_grouped["ci_lower"],
-            fcquic_fec_grouped["ci_upper"],
-            color=FCQUIC_FEC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # Baseline QUIC
     if len(baseline_grouped) > 0:
-        x_baseline = baseline_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_baseline,
+        bax.errorbar(
+            baseline_grouped["ADDITIONAL_DATA_SIZE"],
             baseline_grouped[mean_or_median],
+            yerr=baseline_grouped["ci"],
             label="Baseline QUIC",
             color=BASELINE_QUIC_COLOR,
             linestyle=BASELINE_QUIC_LINESTYLE,
             marker=BASELINE_QUIC_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_baseline,
-            baseline_grouped["ci_lower"],
-            baseline_grouped["ci_upper"],
-            color=BASELINE_QUIC_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # TCP
     if len(tcp_grouped) > 0:
-        x_tcp = tcp_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_tcp,
+        bax.errorbar(
+            tcp_grouped["ADDITIONAL_DATA_SIZE"],
             tcp_grouped[mean_or_median],
+            yerr=tcp_grouped["ci"],
             label="Baseline TCP (+TLS)",
             color=BASELINE_TCP_COLOR,
             linestyle=BASELINE_TCP_LINESTYLE,
             marker=BASELINE_TCP_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tcp,
-            tcp_grouped["ci_lower"],
-            tcp_grouped["ci_upper"],
-            color=BASELINE_TCP_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # TCP NO TLS
     if len(tcp_no_tls_grouped) > 0:
-        x_tcp_no_tls = tcp_no_tls_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_tcp_no_tls,
+        bax.errorbar(
+            tcp_no_tls_grouped["ADDITIONAL_DATA_SIZE"],
             tcp_no_tls_grouped[mean_or_median],
+            yerr=tcp_no_tls_grouped["ci"],
             label="Baseline TCP (NO TLS)",
             color=BASELINE_TCP_NO_TLS_COLOR,
             linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
             marker=BASELINE_TCP_NO_TLS_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tcp_no_tls,
-            tcp_no_tls_grouped["ci_lower"],
-            tcp_no_tls_grouped["ci_upper"],
-            color=BASELINE_TCP_NO_TLS_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     # Tokio-quiche
     if len(tokio_quiche_grouped) > 0:
-        x_tokio_quiche = tokio_quiche_grouped["ADDITIONAL_DATA_SIZE"]
-        bax.plot(
-            x_tokio_quiche,
+        bax.errorbar(
+            tokio_quiche_grouped["ADDITIONAL_DATA_SIZE"],
             tokio_quiche_grouped[mean_or_median],
+            yerr=tokio_quiche_grouped["ci"],
             label="Tokio-quiche",
             color=TOKIO_QUICHE_COLOR,
             linestyle=TOKIO_QUICHE_LINESTYLE,
             marker=TOKIO_QUICHE_MARKER,
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            x_tokio_quiche,
-            tokio_quiche_grouped["ci_lower"],
-            tokio_quiche_grouped["ci_upper"],
-            color=TOKIO_QUICHE_COLOR,
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
     bax.xlabel("Message size in bytes", labelpad=25)
@@ -201,7 +176,13 @@ def plot_avg_lat_vs_add_size(
     bax.ylabel(f"{mean_or_median.capitalize()} Latency (ms)", labelpad=40)
 
     bax.grid(True, alpha=0.3)
-    bax.legend(loc="upper left")
+    bax.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=2,
+        mode="expand",
+        borderaxespad=0.0,
+    )
     if not no_title:
         plt.title(
             f"{mean_or_median.capitalize()} latency vs Message size ({poisson_str})",
@@ -278,18 +259,10 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
 
     sns.set_style("whitegrid")
-    height = 8
-    width = 7
-    fig = plt.figure(figsize=(width, height))
+    height = 5
+    width = 10
+    fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
-
-    low_max = grouped[grouped["CURRENT_TEST"] != "FCQUIC"]["ci_upper"].max()
-    high_min = grouped[grouped["CURRENT_TEST"] == "FCQUIC"]["ci_lower"].min()
-    high_max = grouped[grouped["CURRENT_TEST"] == "FCQUIC"]["ci_upper"].max()
-    low_top = float(np.ceil(low_max + 1))
-    high_bot = float(np.floor(high_min - 1))
-    high_top = float(np.ceil(high_max + 1))
-    bax = brokenaxes(ylims=((0, low_top), (high_bot, high_top)), hspace=0.1)
 
     for impl in order:
         sub = grouped[grouped["CURRENT_TEST"] == impl].sort_values(
@@ -297,38 +270,42 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
         )
         if sub.empty:
             continue
-        bax.plot(
+        ax.errorbar(
             sub["ADDITIONAL_DATA_SIZE"],
             sub["mean"],
+            yerr=sub["ci"],
             label=labels[impl],
             color=palette[impl],
             linestyle=linestyles[impl],
             marker=markers[impl],
             markersize=MARKERSIZE,
             lw=LINEWIDTH,
-        )
-        bax.fill_between(
-            sub["ADDITIONAL_DATA_SIZE"],
-            sub["ci_lower"],
-            sub["ci_upper"],
-            color=palette[impl],
-            alpha=CONFIDENCE_BAND_OPACITY,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
         )
 
-    bax.set_xlabel("Message size in bytes", labelpad=25)
-    bax.set_ylabel(
-        "CPU utilization percentage",
-        labelpad=40,
-    )
-    bax.grid(True, alpha=0.3)
-    bax.legend(loc="upper left")
+    ax.set_xlabel("Message size in bytes", labelpad=25)
+    ax.set_ylabel("CPU utilization percentage", labelpad=40)
+    ax.set_ybound(0, 100)
+    ax.grid(True, alpha=0.3)
+    # ax.legend(loc="upper left")
     if not no_title:
-        plt.title(
+        ax.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=2,
+            mode="expand",
+            borderaxespad=0.0,
+        )
+        ax.set_title(
             f"Server CPU load by implementation ({poisson_str}): {topo_name.replace('%', 'per')}",
         )
+    fig.tight_layout()
     fig.savefig(
         f"{out_path}/cpu_load_{topo_name}_{poisson_str}.svg", bbox_inches="tight"
     )
+    plt.close(fig)
 
 
 def get_median_std_grouped_for_df(df):
