@@ -556,7 +556,7 @@ class Topology:
             )
 
     def _add_route(self, node):
-        (_, peer, _) = list(self.graph.edges(node, data=True))[0]
+        (_, peer, local_info) = list(self.graph.edges(node, data=True))[0]
         peer_info = self.graph.get_edge_data(peer, node)
 
         subprocess.run(
@@ -571,6 +571,22 @@ class Topology:
                 "default",
                 "via",
                 f"{peer_info['ip']}",
+            ]
+        )
+
+        # add an explicit route to maybe fix fcuqic network unreachable error?
+        subprocess.run(
+            [
+                "ip",
+                "netns",
+                "exec",
+                f"{node}",
+                "ip",
+                "route",
+                "add",
+                "224.0.0.0/4",
+                "dev",
+                f"{local_info['itf']}",
             ]
         )
 

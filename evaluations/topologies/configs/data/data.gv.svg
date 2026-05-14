@@ -25,7 +25,6 @@
 <g id="edge1" class="edge">
 <title>r1&#45;&#45;r2</title>
 <path fill="none" stroke="black" d="M583.62,-1665.82C606.55,-1652.39 647.26,-1628.69 682.47,-1609.01 755.1,-1568.4 842.48,-1521.73 880,-1501.8"/>
-<text text-anchor="middle" x="861.96" y="-1514.86" font-family="Times,serif" font-size="13.00">1ms</text>
 </g>
 <!-- r3 -->
 <g id="node3" class="node">
@@ -37,7 +36,6 @@
 <g id="edge2" class="edge">
 <title>r1&#45;&#45;r3</title>
 <path fill="none" stroke="black" d="M544.63,-1676.31C484.8,-1675.77 312.98,-1674.22 253.16,-1673.68"/>
-<text text-anchor="middle" x="280.46" y="-1650.35" font-family="Times,serif" font-size="13.00">1ms</text>
 </g>
 <!-- server1 -->
 <g id="node4" class="node">
@@ -50,7 +48,6 @@
 <g id="edge3" class="edge">
 <title>r1&#45;&#45;server1</title>
 <path fill="none" stroke="black" d="M565.4,-1697.46C564.91,-1850.63 561.89,-2795.46 561.42,-2942.15"/>
-<text text-anchor="middle" x="548.83" y="-2904.02" font-family="Times,serif" font-size="13.00">1ms</text>
 </g>
 <!-- client1 -->
 <g id="node5" class="node">
@@ -63,7 +60,6 @@
 <g id="edge4" class="edge">
 <title>r1&#45;&#45;client1</title>
 <path fill="none" stroke="black" d="M565.16,-1655.23C563.19,-1516.7 552.18,-743.69 549.97,-588.84"/>
-<text text-anchor="middle" x="563.04" y="-604.94" font-family="Times,serif" font-size="13.00">1ms</text>
 </g>
 <!-- client2 -->
 <g id="node6" class="node">

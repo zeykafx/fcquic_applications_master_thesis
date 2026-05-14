@@ -6,15 +6,15 @@
 FCQUIC vs QUIC vs TCP (with TLS)
 
 %config
-n_runs=3
+n_runs=1
 timeout=3600
 result_append={LATENCY}
 
 %late_variables
-RELEASE_MODE=true
+RELEASE_MODE="true"
 CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="warn"
-SERVERS_NUMBER_THREADS=2
+SERVERS_NUMBER_THREADS=8
 
 %variables
 // # ------------- RECEIVERS TEST -------------
@@ -34,35 +34,35 @@ INTERVAL=100
 LAMBDA=50000
 // # LAMBDA=10000
 TEST_LENGTH=5
-FALLBACK_DELAY=10000
+FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
-latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
+latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE","QUIC"}
 latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=100000
+latency:LAMBDA=1000
 // # latency:LAMBDA=100000
 // # NOTE: 10 000 pkts/s = 91.1Mbps
 // # NOTE: 20 000 pkts/s = 182.2Mbps
 // # NOTE: 50 000 pkts/s = 496Mbps
-latency:TEST_LENGTH=6
-latency:FALLBACK_DELAY=10000
-// # latency:ADDITIONAL_DATA_SIZE=1100
-latency:ADDITIONAL_DATA_SIZE={0,550,1100}
+latency:TEST_LENGTH=10
+latency:FALLBACK_DELAY=1000
+latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,550,1100}
 // # latency:ADDITIONAL_DATA_SIZE={550,1100}
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
-data:NUM_CLIENTS=71
+data:NUM_CLIENTS=75
 data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
-data:TEST_LENGTH=5
+data:TEST_LENGTH=4
 data:FALLBACK_DELAY=10000
 {
-	data:ADDITIONAL_DATA_SIZE={1100,2200,3400,4700}
-	data:LAMBDA={21400,11000,7000,5250}
+	data:ADDITIONAL_DATA_SIZE={1100,2200,3400,4700,6500,9000}
+	data:LAMBDA={26750,13775,8750,6575,4750,3450}
 }
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
@@ -81,23 +81,23 @@ CARGO_PATH=""
 
 
 // NOTE: the servers have 2 threads. They are set to cores 0-1 (1 included), CPUMAX is exclusive here
-%import@server cpuload CPUMIN=0 CPUMAX=2 TEST_LENGTH=7
+%import@server cpuload CPUMIN=0 CPUMAX=9 TEST_LENGTH=10
 
 %init
 
 // ------ Pre setup ------
-// Setting UDP buffer values (67 Megabytes)
-sudo sysctl -w net.core.rmem_default=67108864
-sudo sysctl -w net.core.rmem_max=67108864
+// Setting UDP buffer values (2 GiB)
+sudo sysctl -w net.core.rmem_default=2147483647
+sudo sysctl -w net.core.rmem_max=2147483647
 
-// Setting TCP buffer values
-sudo sysctl -w net.core.rmem_max=67108864
-sudo sysctl -w net.core.wmem_max=67108864
+sudo sysctl -w net.core.wmem_default=2147483647
+sudo sysctl -w net.core.wmem_max=2147483647
+
 
 // according to redhat (https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/network_troubleshooting_and_performance_tuning/tuning-tcp-connections-for-high-throughput#the-system-wide-tcp-socket-buffer-settings)
 // the tree values are 1. the min socket size, 2. the default socket size, and 3. the max socket size that a socket can have if requested
-sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
-sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
+sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 2147483647"
+sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 2147483647"
 sudo sysctl -w net.core.netdev_max_backlog=10000
 
 // Disable slow start after idle
@@ -115,7 +115,7 @@ echo "Building project"
 
 if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    RUSTFLAGS="-C target-cpu=native" $CARGO_PATH build --release > /dev/null
+    $CARGO_PATH build --release 
 
    	cp ./target/release/quic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-server
     cp ./target/release/quic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-client
@@ -127,7 +127,7 @@ if [ "$RELEASE_MODE" = "true" ]; then
     cp ./target/release/tquic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/tquic-client
 else
     echo "building all in debug mode"
-    $CARGO_PATH build > /dev/null 2> /dev/null
+    $CARGO_PATH build
 
    	cp ./target/debug/quic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-server
     cp ./target/debug/quic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-client
@@ -248,9 +248,9 @@ else
 	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
 	touch ${LOG_FILENAME}
 
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
+	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --length ${TEST_LENGTH} --flexicast \
-	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler noredundancy > ${LOG_FILENAME}  2>&1 &
+	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME}  2>&1 &
 
 fi
 
@@ -263,7 +263,7 @@ echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 
 // ------------------------ CLIENTS ------------------------
-%script@client waitfor=server-up delay=1
+%script@client waitfor=server-up
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -279,6 +279,8 @@ RUN_LOGS_DIR_TCP_NO_TLS_NUM_CLIENTS="${RUN_LOGS_DIR_TCP_NO_TLS}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_FEC}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_NO_FEC}/${NUM_CLIENTS}"
 RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS="${RUN_LOGS_DIR_TOKIO_QUICHE}/${NUM_CLIENTS}"
+
+sleep 1
 
 echo "Starting clients"
 pids=()
@@ -360,7 +362,7 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
      		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS}
 	    fi
 
-	    sudo ip netns exec client${CLIENT_ID} env QLOGDIR=${QLOGDIR} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
+	    sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 			-l 10.10.${CLIENT_ID}.2 --flexicast ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &
 	fi
 

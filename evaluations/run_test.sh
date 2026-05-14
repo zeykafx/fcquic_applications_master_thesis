@@ -202,7 +202,7 @@ done
 echo "Topology setup and IS-IS converged"
 
 # wait even more for everything to converge
-sleep 5
+sleep 6
 
 # ---------------- Running npf script ----------------
 
