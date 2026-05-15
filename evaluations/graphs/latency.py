@@ -263,7 +263,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     )
     grouped = grouped.sort_values("CURRENT_TEST")
 
-    grouped["protocol"] = grouped["CURRENT_TEST"].map(labels)
+    grouped["implementation"] = grouped["CURRENT_TEST"].map(labels)
 
     sns.set_style("whitegrid")
     width = 6
@@ -272,7 +272,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
     bars = ax.bar(
-        grouped["protocol"],
+        grouped["implementation"],
         grouped["mean"],
         yerr=grouped["std"],
         color=[palette[v] for v in grouped["CURRENT_TEST"]],
@@ -288,7 +288,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
 
     ax.set_ybound(0)
     ax.set_xlabel(
-        "Protocol",
+        "Implementation",
     )
     ax.set_ylabel(
         "CPU utilization percentage",

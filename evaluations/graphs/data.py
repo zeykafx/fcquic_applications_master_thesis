@@ -285,8 +285,8 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
             elinewidth=LINEWIDTH * 0.8,
         )
 
-    ax.set_xlabel("Message size in bytes", labelpad=25)
-    ax.set_ylabel("CPU utilization percentage", labelpad=40)
+    ax.set_xlabel("Message size in bytes")
+    ax.set_ylabel("CPU utilization percentage")
     ax.set_ybound(0, 100)
     ax.grid(True, alpha=0.3)
     # ax.legend(loc="upper left")
@@ -348,7 +348,6 @@ def main(res_path, out_path, no_title=False):
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
     # remove outliers
-    # TODO: check if this is okay
     q = data_df["y_LATENCY"].quantile(0.995)
     print(f"Outlier threshold: {q}")
     data_df = data_df[data_df["y_LATENCY"] < q]

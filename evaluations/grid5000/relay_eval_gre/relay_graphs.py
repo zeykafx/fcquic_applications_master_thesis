@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 import matplotlib.pyplot as plt
+from matplotlib.collections import PolyCollection
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -132,13 +133,13 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name, no_title):
         ) / 1000  # from ms to seconds
         sum_ack_lengths = ack_rate_df["length"].sum()
         num_acks = ack_rate_df["length"].count()
-        # (total len / total time) is in bits, so div by 1 million to get megabits
+        # (total len / total time) is in bytes, so div by 1 million to get megabytes
         rate = (sum_ack_lengths / total_measured_time) / 1e6
 
         records.append(
             {
                 "relay_type": labels[label],
-                "ack_rate_mbps": rate,
+                "ack_rate_mbytes_ps": rate,
                 "num_acks": num_acks,
             }
         )
@@ -146,25 +147,31 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name, no_title):
     df = pd.DataFrame(records)
 
     sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(6, 7))
-    latexify(nb_subplots_line=1, fig_height=6, fig_width=7)
+    width = 6
+    height = 5
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
     bars = ax.bar(
         df["relay_type"],
-        df["ack_rate_mbps"],
+        df["ack_rate_mbytes_ps"],
         color=palette.values(),
         width=0.5,
         edgecolor="black",
     )
 
-    labels = [f"{m:.3f}" for m in df["ack_rate_mbps"]]
-    ax.bar_label(bars, labels=labels, padding=5)
+    labels = [f"{m:.2f} MB/s" for m in df["ack_rate_mbytes_ps"]]
+    ax.bar_label(bars, labels=labels, padding=3)
 
     ax.set_xlabel("Relay implementation")
-    ax.set_ylabel(f"ACK rate (Mbits/s)")
+    ax.set_ylabel(f"ACK rate (MB/s)")
+
     if not no_title:
-        ax.set_title("ACK rate (in Mbits/s) by relay implementation")
-    ax.set_ylim(0)
-    plt.grid(True, alpha=0.3)
+        ax.set_title("ACK rate (in MB/s) by relay implementation")
+
+    # set the top limit to a bit more than the max so that the label isn't leaving the graph's box
+    ax.set_ylim(0, df["ack_rate_mbytes_ps"].max() + 0.3)
+    # ax.tick_params(axis="x", rotation=20)
+    # plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(
         f"{out_path}/ack_rates_{name}.svg",
@@ -174,8 +181,10 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name, no_title):
 
     # number of ACK packets -----------------
 
-    fig, ax = plt.subplots(figsize=(6, 7))
-    latexify(nb_subplots_line=1, fig_height=6, fig_width=7)
+    width = 6
+    height = 5
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
     bars = ax.bar(
         df["relay_type"],
         df["num_acks"],
@@ -184,17 +193,21 @@ def plot_ack_rate_graphs(ack_rates_path, out_path, name, no_title):
         edgecolor="black",
     )
 
-    labels = [f"{m:.3f}" for m in df["num_acks"]]
-    ax.bar_label(bars, labels=labels, padding=5)
+    labels = [str(m) for m in df["num_acks"]]
+    ax.bar_label(bars, labels=labels, padding=2)
 
-    ax.set_xlabel("Relay implementation")
+    ax.set_xlabel(
+        "Relay implementation",
+    )
     ax.set_ylabel(f"Number of ACK frames")
     if not no_title:
         ax.set_title(
             "Number of ACK frames received by FCQUIC source with/without relays",
         )
 
-    ax.set_ylim(0)
+    # ax.tick_params(axis="x", rotation=20)
+    max_nbr_acks = df["num_acks"].max()
+    ax.set_ylim(0, max_nbr_acks + (0.1 * max_nbr_acks))
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(
@@ -212,7 +225,6 @@ def plot_cpu_load(cpu_csv_path, out_path, name, no_title):
 
     # select the rows with cpu_id = -1 (they contain the mean of the cpu usage for that time step)
     cpu_df = cpu_df[cpu_df["cpu_id"] == -1]
-    # cpu_df = cpu_df[cpu_df["cpu_id"] <= 1]
 
     # clean up the messy quotes that npf adds
     cpu_df["RELAY_VERSION"] = cpu_df["RELAY_VERSION"].str.replace('"', "")
@@ -245,8 +257,10 @@ def plot_cpu_load(cpu_csv_path, out_path, name, no_title):
     grouped["relay_type"] = grouped["RELAY_VERSION"].map(labels)
 
     sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(8, 8))
-    latexify(nb_subplots_line=1, fig_height=8, fig_width=8)
+    width = 6
+    height = 5
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
     bars = ax.bar(
         grouped["relay_type"],
         grouped["mean"],
@@ -257,15 +271,18 @@ def plot_cpu_load(cpu_csv_path, out_path, name, no_title):
         capsize=5,
     )
 
-    labels = [f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])]
-    ax.bar_label(bars, labels=labels, padding=5)
+    labels = [f"{m:.2f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])]
+    ax.bar_label(bars, labels=labels, padding=2)
 
-    ax.set_xlabel("Relay implementation")
-    ax.set_ylabel("CPU utilization percentage")
+    ax.set_xlabel("Relay implementation in use")
+    ax.set_ylabel("Source CPU utilization percentage")
+
     if not no_title:
         ax.set_title("FCQUIC Source CPU Load with different relay implementations")
 
-    # ax.set_ylim(0, 100)
+    # make room for the labels above the bars (otherwise they were overlapping with the graph's box)
+    ax.set_ylim(0, 110)
+    # ax.tick_params(axis="x", rotation=20)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(f"{out_path}/cpu_load_{name}.svg", bbox_inches="tight")
@@ -273,10 +290,6 @@ def plot_cpu_load(cpu_csv_path, out_path, name, no_title):
 
 
 def plot_mean_median_latency(data_df, out_path, name, no_title):
-    # q = data_df["y_LATENCY"].quantile(0.995)
-    # print(f"Outlier threshold: {q}")
-    # data_df = data_df[data_df["y_LATENCY"] < q].copy()
-
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
 
@@ -320,9 +333,13 @@ def plot_mean_median_latency(data_df, out_path, name, no_title):
         grouped["relay_type"] = grouped["RELAY_VERSION"].map(labels)
 
         sns.set_style("whitegrid")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+        width = 6
+        height = 6
+        fig, ax = plt.subplots(figsize=(width, height))
+        latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
+        std_dev_max = grouped["std"].max()
+        main_val_max = grouped[mean_or_median].max()
         bars = ax.bar(
             grouped["relay_type"],
             grouped[mean_or_median],
@@ -334,18 +351,26 @@ def plot_mean_median_latency(data_df, out_path, name, no_title):
         )
 
         labels_axes = [
-            f"{m:.3f} +- {s:.2f}"
+            f"{m:.1f} +- {s:.1f}"
             for m, s in zip(grouped[mean_or_median], grouped["std"])
         ]
-        ax.bar_label(bars, labels=labels_axes, padding=5)
+        ax.bar_label(bars, labels=labels_axes, padding=2)
 
-        ax.set_xlabel("Relay implementation", fontsize=13)
+        ax.set_xlabel("Relay implementation")
         ax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
         if not no_title:
             ax.set_title(
                 f"{mean_or_median.capitalize()} latency vs Relay Implementation",
             )
-        ax.set_ylim(0)
+
+        ax.set_ylim(
+            0,
+            max(
+                std_dev_max + (0.3 * std_dev_max),
+                main_val_max + (0.3 * main_val_max),
+            ),  # basically, if the stddev is huge, pick that to set the ylimit, otherwise pick the mean or median latency max
+        )
+        # ax.tick_params(axis="x", rotation=20)
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
         fig.savefig(
@@ -363,11 +388,6 @@ def plot_mean_median_vs_data_size(data_df, out_path, name, no_title):
     if data_df["ADDITIONAL_DATA_SIZE"].nunique() <= 1:
         print("only one additional data size, skipping mean/median plot.")
         return
-
-    # # remove outliers
-    # q = data_df["y_LATENCY"].quantile(0.995)
-    # print(f"Outlier threshold: {q}")
-    # data_df = data_df[data_df["y_LATENCY"] < q].copy()
 
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
@@ -391,79 +411,75 @@ def plot_mean_median_vs_data_size(data_df, out_path, name, no_title):
             app_relay_grouped = get_median_std_grouped_for_df(df_app_relay)
 
         sns.set_style("whitegrid")
-        plt.figure(figsize=(8, 6))
-        latexify(nb_subplots_line=1, fig_height=8, fig_width=6)
+        width = 7
+        height = 6
+        fig, ax = plt.subplots(figsize=(width, height))
+        latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
         if len(no_relay_grouped) > 0:
-            x = no_relay_grouped["ADDITIONAL_DATA_SIZE"]
-            plt.plot(
-                x,
+            ax.errorbar(
+                no_relay_grouped["ADDITIONAL_DATA_SIZE"],
                 no_relay_grouped[mean_or_median],
+                yerr=no_relay_grouped["ci"],
                 label="No Relay",
                 color=NO_RELAY_COLOR,
                 linestyle=NO_RELAY_LINESTYLE,
                 marker=NO_RELAY_MARKER,
                 markersize=MARKERSIZE,
                 lw=LINEWIDTH,
-            )
-            plt.fill_between(
-                x,
-                no_relay_grouped["ci_lower"],
-                no_relay_grouped["ci_upper"],
-                color=NO_RELAY_COLOR,
-                alpha=CONFIDENCE_BAND_OPACITY,
+                capsize=4,
+                capthick=LINEWIDTH,
+                elinewidth=LINEWIDTH * 0.8,
             )
 
         if len(fcquic_relay_grouped) > 0:
-            x = fcquic_relay_grouped["ADDITIONAL_DATA_SIZE"]
-            plt.plot(
-                x,
+            ax.errorbar(
+                fcquic_relay_grouped["ADDITIONAL_DATA_SIZE"],
                 fcquic_relay_grouped[mean_or_median],
+                yerr=fcquic_relay_grouped["ci"],
                 label="FCQUIC Relay",
                 color=FCQUIC_RELAY_COLOR,
                 linestyle=FCQUIC_RELAY_LINESTYLE,
                 marker=FCQUIC_RELAY_MARKER,
                 markersize=MARKERSIZE,
                 lw=LINEWIDTH,
-            )
-            plt.fill_between(
-                x,
-                fcquic_relay_grouped["ci_lower"],
-                fcquic_relay_grouped["ci_upper"],
-                color=FCQUIC_RELAY_COLOR,
-                alpha=CONFIDENCE_BAND_OPACITY,
+                capsize=4,
+                capthick=LINEWIDTH,
+                elinewidth=LINEWIDTH * 0.8,
             )
 
         if len(app_relay_grouped) > 0:
-            x = app_relay_grouped["ADDITIONAL_DATA_SIZE"]
-            plt.plot(
-                x,
+            ax.errorbar(
+                app_relay_grouped["ADDITIONAL_DATA_SIZE"],
                 app_relay_grouped[mean_or_median],
+                yerr=app_relay_grouped["ci"],
                 label="Application relay",
                 color=APP_RELAY_COLOR,
                 linestyle=APP_RELAY_LINESTYLE,
                 marker=APP_RELAY_MARKER,
                 markersize=MARKERSIZE,
                 lw=LINEWIDTH,
-            )
-            plt.fill_between(
-                x,
-                app_relay_grouped["ci_lower"],
-                app_relay_grouped["ci_upper"],
-                color=APP_RELAY_COLOR,
-                alpha=CONFIDENCE_BAND_OPACITY,
+                capsize=4,
+                capthick=LINEWIDTH,
+                elinewidth=LINEWIDTH * 0.8,
             )
 
-        plt.xlabel("Additional data size (bytes)")
-        plt.ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
+        ax.set_xlabel("Additional data size (bytes)")
+        ax.set_ylabel(f"{mean_or_median.capitalize()} Latency (ms)")
         if not no_title:
-            plt.title(
+            ax.set_title(
                 f"{mean_or_median.capitalize()} latency vs additional data size",
             )
-        # plt.ylim(bottom=0)
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
+
+        ax.legend(
+            bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+            loc="lower left",
+            ncols=3,
+            mode="expand",
+            borderaxespad=0.0,
+        )
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
         plt.savefig(
             f"{out_path}/{mean_or_median}_latency_{name}.svg",
             bbox_inches="tight",
@@ -499,11 +515,6 @@ def _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
 
 def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=False):
-    # remove outliers
-    # q = data_df["y_LATENCY"].quantile(0.995)
-    # print(f"Outlier threshold: {q}")
-    # data_df = data_df[data_df["y_LATENCY"] < q]
-
     # filter dataframes based on RELAY_VERSION, mappings:
     df_no_relay = data_df[data_df["RELAY_VERSION"] == "none"]
     df_fcquic_relay = data_df[data_df["RELAY_VERSION"] == "RELAY"]
@@ -534,15 +545,16 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
-    fig = plt.figure(figsize=(7, 7))
-    latexify(nb_subplots_line=1, fig_height=7, fig_width=7)
+    width = 8
+    height = 5
+    fig = plt.figure(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
     plt.ylabel("Probability of occurence")
 
-    # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
     if not no_title:
         plt.title(
@@ -558,7 +570,7 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
 
     # zoomed inset
     if inset:
-        axins = ax.inset_axes([0.58, 0.05, 0.40, 0.25])  # type: ignore
+        axins = ax.inset_axes([0.48, 0.08, 0.50, 0.55])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")
@@ -593,11 +605,16 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
 
         axins.tick_params(labelsize=10)
         axins.grid(True, alpha=0.3)
+        # ax.indicate_inset_zoom(axins, edgecolor="gray", alpha=0.6, linewidth=0.8)
 
-        ax.legend(loc="center right", fontsize=13, framealpha=0.9)
-    else:
-        ax.legend(loc="lower right", fontsize=13, framealpha=0.9)
-
+    # place legend at the top (code from https://matplotlib.org/stable/users/explain/axes/legend_guide.html#term-legend-key)
+    plt.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=3,
+        mode="expand",
+        borderaxespad=0.0,
+    )
     fig.tight_layout()
 
     data_size_str = f"_datasize_{data_size}" if data_size is not None else ""
