@@ -101,6 +101,8 @@ def main(res_path, out_path, clip, inset=False, no_title=False):
         data_df, out_path, topo_name, poisson_str, no_title, mean_or_median="mean"
     )
 
+    plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title)
+
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
     plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
 
@@ -211,6 +213,142 @@ def plot_median_latency_bar(
         bbox_inches="tight",
     )
     plt.close(fig)
+
+
+def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
+    order = ["FCQUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    labels = {
+        "FCQUIC": "FC-QUIC",
+        "TCP": "Baseline TCP (+TLS)",
+        "TCP_NO_TLS": "Baseline TCP (NO TLS)",
+        "TOKIO_QUICHE": "Baseline Tokio-quiche",
+    }
+    palette = {
+        "FCQUIC": FCQUIC_COLOR,
+        "TCP": BASELINE_TCP_COLOR,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
+        "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+    }
+    line_style = {
+        "FCQUIC": (FCQUIC_LINESTYLE, FCQUIC_MARKER),
+        "TCP": (BASELINE_TCP_LINESTYLE, BASELINE_TCP_MARKER),
+        "TCP_NO_TLS": (BASELINE_TCP_NO_TLS_LINESTYLE, BASELINE_TCP_NO_TLS_MARKER),
+        "TOKIO_QUICHE": (TOKIO_QUICHE_LINESTYLE, TOKIO_QUICHE_MARKER),
+    }
+
+    directions = [
+        ("y_GOODPUT-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
+        ("y_GOODPUT-UP-MBPS", "up", "Upstream goodput (Mbps)"),
+    ]
+
+    # whichever ax has more data is used
+    candidate_axes = [
+        ("NUM_CLIENTS", "Number of clients"),
+        ("ADDITIONAL_DATA_SIZE", "Additional data size (bytes)"),
+    ]
+    sweep_col = ""
+    sweep_label = ""
+    for col, lbl in candidate_axes:
+        if col in data_df.columns and data_df[col].nunique() > 1:
+            sweep_col = col
+            sweep_label = lbl
+            break
+
+    for col, direction, ylabel in directions:
+        if col not in data_df.columns:
+            print(f"no {col} column found, skipping {direction} goodput plot")
+            continue
+
+        cols = ["CURRENT_TEST", col] + ([sweep_col] if sweep_col else [])
+        df = data_df[cols].copy()
+        df = df[df[col].notna()]
+        df = df[df["CURRENT_TEST"].isin(order)]
+        if df.empty:
+            print(f"no {direction} goodput samples, skipping plot")
+            continue
+
+        sns.set_style("whitegrid")
+        width = 7
+        height = 6
+        fig, ax = plt.subplots(figsize=(width, height))
+        latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+        if not sweep_col:
+            #  if no sweep var is found then we just tested one thing
+            # so we output a bar graph
+            grouped = df.groupby("CURRENT_TEST")[col].agg(["mean", "std"]).reset_index()
+            grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
+            grouped["CURRENT_TEST"] = pd.Categorical(
+                grouped["CURRENT_TEST"], categories=order, ordered=True
+            )
+            grouped = grouped.sort_values("CURRENT_TEST")
+            present = list(grouped["CURRENT_TEST"])
+            bars = ax.bar(
+                [labels[t] for t in present],
+                grouped["mean"],
+                yerr=grouped["std"].fillna(0),
+                color=[palette[t] for t in present],
+                width=0.5,
+                edgecolor="black",
+                capsize=5,
+            )
+            ax.bar_label(
+                bars,
+                labels=[f"{m:.2f}" for m in grouped["mean"]],
+                padding=5,
+            )
+            ax.set_xlabel("Implementation")
+            ax.tick_params(axis="x", rotation=20)
+            sweep_str = ""
+        else:
+            present = [t for t in order if t in df["CURRENT_TEST"].unique()]
+            for t in present:
+                sub = (
+                    df[df["CURRENT_TEST"] == t]
+                    .groupby(sweep_col)[col]
+                    .mean()
+                    .reset_index()
+                    .sort_values(sweep_col)
+                )
+                if sub.empty:
+                    continue
+                ls, marker = line_style[t]
+                ax.plot(
+                    sub[sweep_col],
+                    sub[col],
+                    label=labels[t],
+                    color=palette[t],
+                    linestyle=ls,
+                    marker=marker,
+                    markersize=MARKERSIZE,
+                    lw=LINEWIDTH,
+                )
+            ax.set_xlabel(sweep_label)
+            ax.legend(
+                bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+                loc="lower left",
+                ncols=2,
+                mode="expand",
+                borderaxespad=0.0,
+            )
+            sweep_str = f"_vs_{sweep_col.lower()}"
+
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        if not no_title:
+            title_suffix = f" vs {sweep_label.lower()}" if sweep_col else ""
+            ax.set_title(
+                f"{direction.capitalize()} goodput{title_suffix} ({poisson_str}): {topo_name.replace('%', 'per')}",
+                fontsize=FONT_SIZE,
+            )
+
+        fig.tight_layout()
+        fig.savefig(
+            f"{out_path}/goodput_{direction}{sweep_str}_{topo_name}_{poisson_str}.svg",
+            bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
 def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
@@ -596,9 +734,9 @@ def process_and_plot(
 ):
     # remove outliers
     # NOTE: is this okay to do???
-    q = data_df["y_LATENCY"].quantile(0.999)
-    print(f"Outlier threshold: {q}")
-    data_df = data_df[data_df["y_LATENCY"] < q]
+    # q = data_df["y_LATENCY"].quantile(0.999)
+    # print(f"Outlier threshold: {q}")
+    # data_df = data_df[data_df["y_LATENCY"] < q]
 
     # filter dataframes based on CURRENT_TEST, mappings:
     # QUIC: CURRENT_TEST = "QUIC"
@@ -645,12 +783,10 @@ def process_and_plot(
 
     if len_fcquic < 0.5 * len_tcp:
         print(
-            "---------------- FCQUIC or FCQUIC_FEC probably bugged during the test!! ----------------"
+            "---------------- FCQUIC probably bugged during the test!! ----------------"
         )
 
-    global_len = min(
-        len_fcquic, len_baseline, len_fcquic_fec, len_tcp, len_tokio_quiche
-    )
+    global_len = min(len_fcquic, len_baseline, len_tcp, len_tokio_quiche)
     print(f"min length of the dataframes: {global_len}")
 
     sns.set_style("whitegrid")
@@ -689,7 +825,7 @@ def process_and_plot(
 
     # zoomed in inset
     if inset:
-        axins = ax.inset_axes([0.5, 0.06, 0.46, 0.42])  # type: ignore
+        axins = ax.inset_axes([0.4, 0.06, 0.55, 0.5])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")

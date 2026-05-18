@@ -6,15 +6,15 @@
 FCQUIC vs QUIC vs TCP (with TLS)
 
 %config
-n_runs=1
-timeout=3600
+n_runs=10
+timeout=1600
 result_append={LATENCY}
 
 %late_variables
 RELEASE_MODE="true"
 CONNECTION_SLEEP_LENGTH=1
 BIN_LOG_LEVEL="warn"
-SERVERS_NUMBER_THREADS=8
+SERVERS_NUMBER_THREADS=2
 
 %variables
 // # ------------- RECEIVERS TEST -------------
@@ -37,21 +37,24 @@ TEST_LENGTH=5
 FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
-latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE","QUIC"}
+latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
 latency:INTERVAL=100
-latency:LAMBDA=1000
+latency:LAMBDA=500
 // # latency:LAMBDA=100000
 // # NOTE: 10 000 pkts/s = 91.1Mbps
 // # NOTE: 20 000 pkts/s = 182.2Mbps
 // # NOTE: 50 000 pkts/s = 496Mbps
-latency:TEST_LENGTH=10
-latency:FALLBACK_DELAY=1000
+latency:TEST_LENGTH=5
 latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,275,550,825,1100}
+// # latency:ADDITIONAL_DATA_SIZE=1100
+// # latency:ADDITIONAL_DATA_SIZE={0,1100}
 // # latency:ADDITIONAL_DATA_SIZE={0,550,1100}
 // # latency:ADDITIONAL_DATA_SIZE={550,1100}
+latency:FALLBACK_DELAY=1000
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 data:NUM_CLIENTS=75
@@ -69,6 +72,10 @@ POISSON="true"
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
 PER_CLIENT_LAT_RESULTS="false"
+// # ----------------------- TCPDUMP / GOODPUT -----------------------
+TCPDUMP=1
+TCPDUMP_GRANULARITY=0.1
+TCPDUMP_SNAPLEN=100
 
 RUN_LOGS_DIR_BASELINE="./logs"
 RUN_LOGS_DIR_TCP="./logs"
@@ -81,7 +88,7 @@ CARGO_PATH=""
 
 
 // NOTE: the servers have 2 threads. They are set to cores 0-1 (1 included), CPUMAX is exclusive here
-%import@server cpuload CPUMIN=0 CPUMAX=9 TEST_LENGTH=10
+%import@server cpuload CPUMIN=0 CPUMAX=2 TEST_LENGTH=10
 
 %init
 
@@ -102,10 +109,6 @@ sudo sysctl -w net.core.netdev_max_backlog=10000
 
 // Disable slow start after idle
 sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
-
-// disable GSO for tokio-quiche
-// TODO: check the prod iface here!
-ethtool -K eth0 gso off
 
 // ------------------------ Building App ------------------------
 
@@ -151,7 +154,7 @@ cp ./cert.key $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.key
 
 
 // ------------------------ SERVER ------------------------
-%script@server sudo=true
+%script@server sudo=true 
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -166,7 +169,22 @@ pkill tquic-server || true
 // when using taskset -c 0-n, n is inclusive, so here SERVERS_NUMBER_THREADS is 4, we need n to be 3
 TASKSET_MAX_CORE=$(echo "${SERVERS_NUMBER_THREADS}-1" | bc)
 
+// disable GSO and TSO for tokio-quiche
+// TODO: check the prod iface here!
+sudo ip netns exec server1 ethtool -K server1-r1 tso off
+sudo ip netns exec server1 ethtool -K server1-r1 gso off
+
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
+
+// ------ Start tcpdump on server egress (for goodput computation) ------
+CAPTURE_DIR=./logs/${NUM_CLIENTS}
+sudo mkdir -p ${CAPTURE_DIR} 2> /dev/null
+if [ "$TCPDUMP" = "1" ]; then
+	echo "Starting tcpdump on server1-r1"
+	sudo ip netns exec server1 tcpdump -w ${CAPTURE_DIR}/server.pcap -i server1-r1 host 10.10.0.2 -s ${TCPDUMP_SNAPLEN} &
+	# Give tcpdump a moment to attach before the server starts pushing packets.
+	sleep 0.5
+fi
 
 echo "Starting server"
 
@@ -254,7 +272,7 @@ else
 
 	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --length ${TEST_LENGTH} --flexicast \
-	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast > ${LOG_FILENAME}  2>&1 &
+	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY > ${LOG_FILENAME}  2>&1 &
 
 fi
 
@@ -266,8 +284,55 @@ SLEEP_LENGTH_SERVER=$(echo "3+${TEST_LENGTH}" | bc)
 echo "Server sleeping for ${SLEEP_LENGTH_SERVER}"
 sleep ${SLEEP_LENGTH_SERVER}
 
+if [ "$TCPDUMP" = "1" ]; then
+	echo "Stopping tcpdump"
+	sudo pkill -f "tcpdump -w ${CAPTURE_DIR}/server.pcap" || true
+	sleep 2
+
+	if [ ! -s "${CAPTURE_DIR}/server.pcap" ]; then
+		echo "ERROR: ${CAPTURE_DIR}/server.pcap is missing or empty"
+	else
+		echo "Running tshark on ${CAPTURE_DIR}/server.pcap"
+
+		tshark -r ${CAPTURE_DIR}/server.pcap -2 -R "ip.src==10.10.0.2" -q -z io,stat,${TCPDUMP_GRANULARITY} > ${CAPTURE_DIR}/server-down.txt
+		tshark -r ${CAPTURE_DIR}/server.pcap -2 -R "ip.dst==10.10.0.2" -q -z io,stat,${TCPDUMP_GRANULARITY} > ${CAPTURE_DIR}/server-up.txt
+
+		DOWN_BYTES=$(tshark -r ${CAPTURE_DIR}/server.pcap -2 -R "ip.src==10.10.0.2" -q -z io,stat,0 \
+			| awk -F'|' '/<>/ {gsub(/ /, "", $4); print $4}' | tail -n 1)
+		UP_BYTES=$(tshark -r ${CAPTURE_DIR}/server.pcap -2 -R "ip.dst==10.10.0.2" -q -z io,stat,0 \
+			| awk -F'|' '/<>/ {gsub(/ /, "", $4); print $4}' | tail -n 1)
+
+		DOWN_BYTES=${DOWN_BYTES:-0}
+		UP_BYTES=${UP_BYTES:-0}
+
+		DOWN_T=$(tshark -r ${CAPTURE_DIR}/server.pcap -Y "ip.src==10.10.0.2" -T fields -e frame.time_epoch \
+			| awk 'NR==1{f=$1} {l=$1} END{if (NR>1) printf "%.6f", l-f; else print 0}')
+		UP_T=$(tshark -r ${CAPTURE_DIR}/server.pcap -Y "ip.dst==10.10.0.2" -T fields -e frame.time_epoch \
+			| awk 'NR==1{f=$1} {l=$1} END{if (NR>1) printf "%.6f", l-f; else print 0}')
+
+		DOWN_DENOM=$(echo "if (${DOWN_T} > 0) ${DOWN_T} else ${TEST_LENGTH}" | bc -l)
+		UP_DENOM=$(echo "if (${UP_T} > 0) ${UP_T} else ${TEST_LENGTH}" | bc -l)
+
+		DOWN_MBPS=$(echo "scale=3; ${DOWN_BYTES} * 8 / ${DOWN_DENOM} / 1000000" | bc -l)
+		UP_MBPS=$(echo "scale=3; ${UP_BYTES} * 8 / ${UP_DENOM} / 1000000" | bc -l)
+
+		echo "GOODPUT_DOWN_BYTES=${DOWN_BYTES}"
+		echo "GOODPUT_UP_BYTES=${UP_BYTES}"
+		echo "GOODPUT_DOWN_DURATION_S=${DOWN_T}"
+		echo "GOODPUT_UP_DURATION_S=${UP_T}"
+		echo "GOODPUT_DOWN_MBPS=${DOWN_MBPS}"
+		echo "GOODPUT_UP_MBPS=${UP_MBPS}"
+
+		echo "RESULT-GOODPUT-DOWN-MBPS ${DOWN_MBPS}"
+		echo "RESULT-GOODPUT-UP-MBPS ${UP_MBPS}"
+		echo "RESULT-GOODPUT-DOWN-DURATION-S ${DOWN_T}"
+		echo "RESULT-GOODPUT-UP-DURATION-S ${UP_T}"
+	fi
+fi
+
+
 // ------------------------ CLIENTS ------------------------
-%script@client waitfor=server-up
+%script@client waitfor=server-up autokill=false
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -383,4 +448,4 @@ for pid in ${pids[*]}; do
     wait $pid
 done
 
-echo "EVENT clients-done"
+

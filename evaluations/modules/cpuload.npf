@@ -9,7 +9,7 @@ and CPUSUM=1 to aggregate all cores into a single CPUSUM result.
 Usage:
   %import@server cpuload CPUMIN=0 CPUMAX=16
 
-%script
+%script autokill=false
 stdbuf -i0 -o0 -e0 python3 cpuload.py "${NPF_ROLE}"
 
 %variables
