@@ -103,6 +103,10 @@ sudo sysctl -w net.core.netdev_max_backlog=10000
 // Disable slow start after idle
 sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=0
 
+// disable GSO for tokio-quiche
+// TODO: check the prod iface here!
+ethtool -K eth0 gso off
+
 // ------------------------ Building App ------------------------
 
 cd $WORKDIR

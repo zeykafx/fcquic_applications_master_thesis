@@ -671,7 +671,7 @@ def process_and_plot(
         add_labels=True,
     )
 
-    plt.ylabel("Probability of occurence")
+    plt.ylabel("CDF")
 
     # Add data size to title if available
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
