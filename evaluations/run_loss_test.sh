@@ -1,24 +1,32 @@
 #!/bin/bash
 
-MEDIUM_TOPOLOGIES=(
-    "medium_0%_loss"
-    "medium_0_1%_loss"
-    "medium_0_5%_loss"
-    "medium_1%_loss"
-    "medium_1_5%_loss"
-    "medium_2%_loss"
-    "medium_3%_loss"
-    "medium_4%_loss"
-    "medium_5%_loss"
-    "medium_7_5%_loss"
-    "medium_10%_loss"
-)
+declare -A TEST_TOPOS
 
-for topo in "${MEDIUM_TOPOLOGIES[@]}"; do
-    echo "Running tests for topo ${topo}"
+TEST_TOPOS[latency]="
+    solo_10gbps
+    tiny_100mbps
+    small_0%_loss_1000mbps
+    small_0_1%_loss_1000mbps
+    small_0_5%_loss_1000mbps
+    small_5%_loss_1000mbps
+    small_10%_loss_1000mbps
+    medium_0%_loss
+    medium_1%_loss
+    medium_5%_loss
+"
 
-    echo "Running with Poisson distribution..."
-    ./run_test.sh latency "${topo}" true
+TEST_TOPOS[receivers]="
+    receivers
+"
 
-    echo ""
+TEST_TOPOS[data]="
+    data
+"
+
+for key in latency receivers data; do
+    for topo in ${TEST_TOPOS[$key]}; do
+        echo "Running tests for [${key}] topo ${topo}"
+        ./run_test.sh "${key}" "${topo}" true
+        echo ""
+    done
 done

@@ -31,7 +31,8 @@ NUM_CLIENTS={2,11,21,31,41,51,61,71,81,91,101}
 // # NUM_CLIENTS={2,3,7,11,15,19,23}
 // # NUM_CLIENTS={2,11,21}
 INTERVAL=100
-LAMBDA=50000
+// # LAMBDA=50000
+LAMBDA=500
 // # LAMBDA=10000
 TEST_LENGTH=5
 FALLBACK_DELAY=1000
@@ -61,11 +62,11 @@ data:NUM_CLIENTS=75
 data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
-data:TEST_LENGTH=4
+data:TEST_LENGTH=5
 data:FALLBACK_DELAY=10000
 {
 	data:ADDITIONAL_DATA_SIZE={1100,2200,3400,4700,6500,9000}
-	data:LAMBDA={26750,13775,8750,6575,4750,3450}
+	data:LAMBDA={500,260,167,125,90,66}
 }
 // # ----------------------- OTHER VARS -----------------------
 POISSON="true"
@@ -176,13 +177,12 @@ sudo ip netns exec server1 ethtool -K server1-r1 gso off
 
 cd $WORKDIR/evaluations/tests/${TEST_DIR_NAME}
 
-// ------ Start tcpdump on server egress (for goodput computation) ------
+// ------ Start tcpdump on outgoing server link
 CAPTURE_DIR=./logs/${NUM_CLIENTS}
 sudo mkdir -p ${CAPTURE_DIR} 2> /dev/null
 if [ "$TCPDUMP" = "1" ]; then
 	echo "Starting tcpdump on server1-r1"
 	sudo ip netns exec server1 tcpdump -w ${CAPTURE_DIR}/server.pcap -i server1-r1 host 10.10.0.2 -s ${TCPDUMP_SNAPLEN} &
-	# Give tcpdump a moment to attach before the server starts pushing packets.
 	sleep 0.5
 fi
 

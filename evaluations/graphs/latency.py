@@ -420,7 +420,7 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     )
 
     bar_labels = [
-        f"{m:.3f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
+        f"{m:.2f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
     ]
     ax.bar_label(bars, labels=bar_labels, padding=5)
 
