@@ -176,7 +176,7 @@ def plot_median_latency_bar(
     label_cap = mean_or_median.capitalize()
 
     sns.set_style("whitegrid")
-    width = 7
+    width = 8
     height = 7
     fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
@@ -216,6 +216,7 @@ def plot_median_latency_bar(
 
 
 def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
+
     order = ["FCQUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
     labels = {
         "FCQUIC": "FC-QUIC",
@@ -237,8 +238,8 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
     }
 
     directions = [
-        ("y_GOODPUT-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
-        ("y_GOODPUT-UP-MBPS", "up", "Upstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-UP-MBPS", "up", "Upstream goodput (Mbps)"),
     ]
 
     # whichever ax has more data is used
@@ -268,7 +269,7 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
             continue
 
         sns.set_style("whitegrid")
-        width = 7
+        width = 8
         height = 6
         fig, ax = plt.subplots(figsize=(width, height))
         latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
@@ -422,9 +423,9 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     bar_labels = [
         f"{m:.2f} +- {s:.2f}" for m, s in zip(grouped["mean"], grouped["std"])
     ]
-    ax.bar_label(bars, labels=bar_labels, padding=5)
+    ax.bar_label(bars, labels=bar_labels, padding=2)
 
-    ax.set_ybound(0)
+    ax.set_ybound(0, 110)
     ax.set_xlabel(
         "Implementation",
     )

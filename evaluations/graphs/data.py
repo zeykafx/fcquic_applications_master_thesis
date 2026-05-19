@@ -322,8 +322,8 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
     }
 
     directions = [
-        ("y_GOODPUT-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
-        ("y_GOODPUT-UP-MBPS", "up", "Upstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-UP-MBPS", "up", "Upstream goodput (Mbps)"),
     ]
 
     candidate_axes = [
@@ -354,8 +354,8 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
         sns.set_style("whitegrid")
         width = 7
         height = 6
-        fig, ax = plt.subplots(figsize=(width, height))
         latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+        fig, ax = plt.subplots(figsize=(width, height))
 
         if not sweep_col:
             grouped = df.groupby("CURRENT_TEST")[col].agg(["mean", "std"]).reset_index()

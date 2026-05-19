@@ -6,7 +6,7 @@
 FCQUIC vs QUIC vs TCP (with TLS)
 
 %config
-n_runs=10
+n_runs=5
 timeout=1600
 result_append={LATENCY}
 
@@ -34,7 +34,7 @@ INTERVAL=100
 // # LAMBDA=50000
 LAMBDA=500
 // # LAMBDA=10000
-TEST_LENGTH=5
+TEST_LENGTH=4
 FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
@@ -58,11 +58,11 @@ latency:ADDITIONAL_DATA_SIZE=1100
 latency:FALLBACK_DELAY=1000
 // # ------------- additional data test -------------
 data:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
-data:NUM_CLIENTS=75
+data:NUM_CLIENTS=91
 data:TEST_DIR_NAME="data"
 data:TOPO_CONF_NAME="data"
 data:INTERVAL=100
-data:TEST_LENGTH=5
+data:TEST_LENGTH=4
 data:FALLBACK_DELAY=10000
 {
 	data:ADDITIONAL_DATA_SIZE={1100,2200,3400,4700,6500,9000}
@@ -73,7 +73,7 @@ POISSON="true"
 TCP_NODELAY="true"
 USE_SYSTEM_TIME="false"
 PER_CLIENT_LAT_RESULTS="false"
-// # ----------------------- TCPDUMP / GOODPUT -----------------------
+// # ----------------------- TCPDUMP / THROUGHPUT -----------------------
 TCPDUMP=1
 TCPDUMP_GRANULARITY=0.1
 TCPDUMP_SNAPLEN=100
@@ -215,7 +215,7 @@ elif [ "$CURRENT_TEST" = "TCP" ]; then
     fi
 
 	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tcp-server \
-		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} > ${LOG_FILENAME}  2>&1 &
+		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} 2> ${LOG_FILENAME} &
 
 elif [ "$CURRENT_TEST" = "TCP_NO_TLS" ]; then
 
@@ -232,22 +232,8 @@ elif [ "$CURRENT_TEST" = "TCP_NO_TLS" ]; then
     fi
 
 	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tcp-server \
-		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} --no-tls > ${LOG_FILENAME}  2>&1 &
+		 --src 10.10.0.2:4433 --test-mode ${SERVER_ARGS} --length ${TEST_LENGTH} --no-tls 2> ${LOG_FILENAME} &
 
-
-elif [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
-
-	RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS="${RUN_LOGS_DIR_FCQUIC_FEC}/${NUM_CLIENTS}"
-	sudo mkdir ${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS} 2> /dev/null
-
-	# Use different log directories for the FEC and NO FEC tests runs
-	LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS}/server.log
-	echo "SERVER LOG FILENAME: ${LOG_FILENAME}"
-	touch ${LOG_FILENAME}
-
-	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
-	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --flexicast \
-	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY --unicast --fec-scheduler constant > ${LOG_FILENAME}  2>&1 &
 
 elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
 
@@ -259,7 +245,7 @@ elif [ "$CURRENT_TEST" = "TOKIO_QUICHE" ]; then
 	touch ${LOG_FILENAME}
 
 	sudo ip netns exec server1 env QLOGDIR=${RUN_LOGS_DIR_TOKIO_QUICHE_NUM_CLIENTS} RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/tquic-server \
-		 --src 10.10.0.2:4433 --test-mode --length ${TEST_LENGTH} > ${LOG_FILENAME}  2>&1 &
+		 --src 10.10.0.2:4433 --test-mode --length ${TEST_LENGTH} 2> ${LOG_FILENAME} &
 
 else
 
@@ -272,7 +258,7 @@ else
 
 	sudo ip netns exec server1 env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always taskset -c 0-${SERVERS_NUMBER_THREADS} ./bin/server \
 	 --src 10.10.0.2:4433 --mc-src-addr 10.10.0.2:4443 --test-mode --length ${TEST_LENGTH} --flexicast \
-	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY > ${LOG_FILENAME}  2>&1 &
+	 --fc-timer 0 --fall-back-delay $FALLBACK_DELAY 2> ${LOG_FILENAME} &
 
 fi
 
@@ -316,17 +302,17 @@ if [ "$TCPDUMP" = "1" ]; then
 		DOWN_MBPS=$(echo "scale=3; ${DOWN_BYTES} * 8 / ${DOWN_DENOM} / 1000000" | bc -l)
 		UP_MBPS=$(echo "scale=3; ${UP_BYTES} * 8 / ${UP_DENOM} / 1000000" | bc -l)
 
-		echo "GOODPUT_DOWN_BYTES=${DOWN_BYTES}"
-		echo "GOODPUT_UP_BYTES=${UP_BYTES}"
-		echo "GOODPUT_DOWN_DURATION_S=${DOWN_T}"
-		echo "GOODPUT_UP_DURATION_S=${UP_T}"
-		echo "GOODPUT_DOWN_MBPS=${DOWN_MBPS}"
-		echo "GOODPUT_UP_MBPS=${UP_MBPS}"
+		echo "THROUGHPUT_DOWN_BYTES=${DOWN_BYTES}"
+		echo "THROUGHPUT_UP_BYTES=${UP_BYTES}"
+		echo "THROUGHPUT_DOWN_DURATION_S=${DOWN_T}"
+		echo "THROUGHPUT_UP_DURATION_S=${UP_T}"
+		echo "THROUGHPUT_DOWN_MBPS=${DOWN_MBPS}"
+		echo "THROUGHPUT_UP_MBPS=${UP_MBPS}"
 
-		echo "RESULT-GOODPUT-DOWN-MBPS ${DOWN_MBPS}"
-		echo "RESULT-GOODPUT-UP-MBPS ${UP_MBPS}"
-		echo "RESULT-GOODPUT-DOWN-DURATION-S ${DOWN_T}"
-		echo "RESULT-GOODPUT-UP-DURATION-S ${UP_T}"
+		echo "RESULT-THROUGHPUT-DOWN-MBPS ${DOWN_MBPS}"
+		echo "RESULT-THROUGHPUT-UP-MBPS ${UP_MBPS}"
+		echo "RESULT-THROUGHPUT-DOWN-DURATION-S ${DOWN_T}"
+		echo "RESULT-THROUGHPUT-UP-DURATION-S ${UP_T}"
 	fi
 fi
 
@@ -421,15 +407,8 @@ for CLIENT_ID in $(seq $NUM_CLIENTS -1 1); do
 
     else
 
-    	if [ "$CURRENT_TEST" = "FCQUIC_FEC" ]; then
-   			LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS}/client${CLIENT_ID}.log
-      		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_FEC_NUM_CLIENTS}
-        	# Also allow the client to receive FEC information
-        	CLIENT_ARGS="$CLIENT_ARGS --fec"
-     	else
-    		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS}/client${CLIENT_ID}.log
-     		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS}
-	    fi
+		LOG_FILENAME=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS}/client${CLIENT_ID}.log
+		QLOGDIR=${RUN_LOGS_DIR_FCQUIC_NO_FEC_NUM_CLIENTS}
 
 	    sudo ip netns exec client${CLIENT_ID} env RUST_BACKTRACE=full RUST_LOG=${BIN_LOG_LEVEL} RUST_LOG_STYLE=always ./bin/client https://10.10.0.2:4433 \
 			-l 10.10.${CLIENT_ID}.2 --flexicast ${CLIENT_ARGS} < /dev/null 2> ${LOG_FILENAME} &

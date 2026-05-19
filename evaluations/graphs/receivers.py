@@ -227,8 +227,8 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
     }
 
     directions = [
-        ("y_GOODPUT-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
-        ("y_GOODPUT-UP-MBPS", "up", "Upstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-DOWN-MBPS", "down", "Downstream goodput (Mbps)"),
+        ("y_GOODPUT-PAYLOAD-UP-MBPS", "up", "Upstream goodput (Mbps)"),
     ]
 
     candidate_axes = [
@@ -259,8 +259,8 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
         sns.set_style("whitegrid")
         width = 7
         height = 6
-        fig, ax = plt.subplots(figsize=(width, height))
         latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+        fig, ax = plt.subplots(figsize=(width, height))
 
         if not sweep_col:
             grouped = df.groupby("CURRENT_TEST")[col].agg(["mean", "std"]).reset_index()
@@ -293,22 +293,27 @@ def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
                 sub = (
                     df[df["CURRENT_TEST"] == t]
                     .groupby(sweep_col)[col]
-                    .mean()
+                    .agg(["mean", "std", "count"])
                     .reset_index()
                     .sort_values(sweep_col)
                 )
                 if sub.empty:
                     continue
+                sub["ci"] = 1.96 * sub["std"] / np.sqrt(sub["count"])
                 ls, marker = line_style[t]
-                ax.plot(
+                ax.errorbar(
                     sub[sweep_col],
-                    sub[col],
+                    sub["mean"],
+                    yerr=sub["ci"].fillna(0),
                     label=labels[t],
                     color=palette[t],
                     linestyle=ls,
                     marker=marker,
                     markersize=MARKERSIZE,
                     lw=LINEWIDTH,
+                    capsize=4,
+                    capthick=LINEWIDTH,
+                    elinewidth=LINEWIDTH * 0.8,
                 )
             ax.set_xlabel(sweep_label)
             ax.legend(
@@ -573,12 +578,6 @@ def main(res_path, out_path, no_title=False):
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
     plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title)
-
-    # # remove outliers
-    # # TODO: check if this is okay
-    # q = data_df["y_LATENCY"].quantile(0.999)
-    # print(f"Outlier threshold: {q}")
-    # data_df = data_df[data_df["y_LATENCY"] < q]
 
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
