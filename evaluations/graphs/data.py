@@ -24,6 +24,7 @@ from style import (
     FCQUIC_FEC_MARKER,
     FCQUIC_LINESTYLE,
     FCQUIC_MARKER,
+    FONT_SIZE,
     LINEWIDTH,
     MARKERSIZE,
     TOKIO_QUICHE_COLOR,
@@ -191,6 +192,158 @@ def plot_avg_lat_vs_add_size(
         f"{out_path}/{mean_or_median}_lat_{add_data_range_str}_{topo_name}_{poisson_str}.svg",
         bbox_inches="tight",
     )
+
+
+def _plot_ecdfs(
+    ax,
+    df_fcquic,
+    df_fcquic_fec,
+    df_baseline,
+    df_tcp,
+    df_tcp_no_tls,
+    df_tokio_quiche,
+    add_labels=True,
+):
+    if len(df_fcquic) > 0:
+        ax.ecdf(
+            (df_fcquic["y_LATENCY"] / 1000),
+            label="FC-QUIC" if add_labels else None,
+            color=FCQUIC_COLOR,
+            linestyle=FCQUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_fcquic_fec) > 0:
+        ax.ecdf(
+            (df_fcquic_fec["y_LATENCY"] / 1000),
+            label="FC-QUIC with FEC" if add_labels else None,
+            color=FCQUIC_FEC_COLOR,
+            linestyle=FCQUIC_FEC_LINESTYLE,
+            lw=LINEWIDTH + 0.2,
+        )
+    if len(df_baseline) > 0:
+        ax.ecdf(
+            (df_baseline["y_LATENCY"] / 1000),
+            label="Baseline QUIC" if add_labels else None,
+            color=BASELINE_QUIC_COLOR,
+            linestyle=BASELINE_QUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp) > 0:
+        ax.ecdf(
+            (df_tcp["y_LATENCY"] / 1000),
+            label="Baseline TCP (+TLS)" if add_labels else None,
+            color=BASELINE_TCP_COLOR,
+            linestyle=BASELINE_TCP_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp_no_tls) > 0:
+        ax.ecdf(
+            (df_tcp_no_tls["y_LATENCY"] / 1000),
+            label="Baseline TCP (NO TLS)" if add_labels else None,
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tokio_quiche) > 0:
+        ax.ecdf(
+            (df_tokio_quiche["y_LATENCY"] / 1000),
+            label="Baseline Tokio-quiche" if add_labels else None,
+            color=TOKIO_QUICHE_COLOR,
+            linestyle=TOKIO_QUICHE_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+
+
+def plot_cdf_for_add_size(data_df, add_size, out_path, topo_name, poisson_str, no_title):
+    df = data_df[data_df["ADDITIONAL_DATA_SIZE"] == add_size]
+
+    df_baseline = df[df["CURRENT_TEST"] == "QUIC"]
+    df_fcquic = df[df["CURRENT_TEST"] == "FCQUIC"]
+    df_fcquic_fec = df[df["CURRENT_TEST"] == "FCQUIC_FEC"]
+    df_tcp = df[df["CURRENT_TEST"] == "TCP"]
+    df_tcp_no_tls = df[df["CURRENT_TEST"] == "TCP_NO_TLS"]
+    df_tokio_quiche = df[df["CURRENT_TEST"] == "TOKIO_QUICHE"]
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 5
+    fig = plt.figure(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    ax = plt.gca()
+    _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche)
+
+    plt.ylabel("CDF")
+    plt.xlabel("Latency (ms)")
+    plt.ylim(0, 1)
+    if not no_title:
+        plt.title(
+            f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')} ({add_size}B messages)",
+            fontsize=FONT_SIZE,
+        )
+
+    axins = ax.inset_axes([0.4, 0.06, 0.55, 0.5])  # type: ignore
+    axins.set_facecolor("white")
+    for spine in axins.spines.values():
+        spine.set_edgecolor("black")
+        spine.set_linewidth(1.0)
+
+    _plot_ecdfs(
+        axins,
+        df_fcquic,
+        df_fcquic_fec,
+        df_baseline,
+        df_tcp,
+        df_tcp_no_tls,
+        df_tokio_quiche,
+        add_labels=False,
+    )
+
+    all_latencies = (
+        pd.concat(
+            [
+                df_fcquic["y_LATENCY"],
+                df_fcquic_fec["y_LATENCY"],
+                df_baseline["y_LATENCY"],
+                df_tcp["y_LATENCY"],
+                df_tcp_no_tls["y_LATENCY"],
+                df_tokio_quiche["y_LATENCY"],
+            ]
+        )
+        / 1000
+    )
+
+    x_min = float(all_latencies.quantile(0.90))
+    x_max = float(all_latencies.max())
+    axins.set_xlim(x_min, x_max)
+    axins.set_ylim(0.9)
+    axins.tick_params(labelsize=8)
+    axins.grid(True, alpha=0.3)
+
+    ax.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=2,
+        mode="expand",
+        borderaxespad=0.0,
+    )
+    plt.grid(True, alpha=0.3)
+    fig.tight_layout()
+    plt.savefig(
+        f"{out_path}/cdf_{add_size}bytes_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
+def plot_cdfs_small_mid_large(data_df, out_path, topo_name, poisson_str, no_title):
+    sizes = sorted(data_df["ADDITIONAL_DATA_SIZE"].unique())
+    if not sizes:
+        print("no ADDITIONAL_DATA_SIZE values, skipping CDF plots")
+        return
+    targets = {sizes[0], sizes[len(sizes) // 2], sizes[-1]}
+    for size in sorted(targets):
+        plot_cdf_for_add_size(data_df, size, out_path, topo_name, poisson_str, no_title)
 
 
 def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
@@ -472,6 +625,7 @@ def main(res_path, out_path, no_title=False):
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
     plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title)
+    plot_cdfs_small_mid_large(data_df, out_path, topo_name, poisson_str, no_title)
 
     # remove outliers
     q = data_df["y_LATENCY"].quantile(0.995)

@@ -87,7 +87,6 @@ RUN_LOGS_DIR_TOKIO_QUICHE="./logs"
 WORKDIR=""
 CARGO_PATH=""
 
-
 // NOTE: the servers have 2 threads. They are set to cores 0-1 (1 included), CPUMAX is exclusive here
 %import@server cpuload CPUMIN=0 CPUMAX=2 TEST_LENGTH=10
 
@@ -171,7 +170,6 @@ pkill tquic-server || true
 TASKSET_MAX_CORE=$(echo "${SERVERS_NUMBER_THREADS}-1" | bc)
 
 // disable GSO and TSO for tokio-quiche
-// TODO: check the prod iface here!
 sudo ip netns exec server1 ethtool -K server1-r1 tso off
 sudo ip netns exec server1 ethtool -K server1-r1 gso off
 
