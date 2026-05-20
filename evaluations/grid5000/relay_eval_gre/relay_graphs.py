@@ -553,7 +553,7 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
     ax = plt.gca()
     _plot_ecdfs(ax, df_no_relay, df_fcquic_relay, df_app_relay, add_labels=True)
 
-    plt.ylabel("Probability of occurence")
+    plt.ylabel("CDF")
 
     data_size_str = f" (data size: {data_size} bytes)" if data_size is not None else ""
     if not no_title:
@@ -570,7 +570,7 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
 
     # zoomed inset
     if inset:
-        axins = ax.inset_axes([0.48, 0.08, 0.50, 0.55])  # type: ignore
+        axins = ax.inset_axes([0.48, 0.08, 0.50, 0.60])  # type: ignore
         axins.set_facecolor("white")
         for spine in axins.spines.values():
             spine.set_edgecolor("black")
@@ -593,15 +593,15 @@ def process_and_plot(data_df, out_path, name, data_size, inset=False, no_title=F
         # then set x_max accordingly, so if xmin was quantile(0.9), we set xmax to max and this will show the upper boddy of the cdf (here the worst 10 of the latencies)
         # if we do the opposite and set xmin to min, then we set xmax to quantile(0.5), this will show the lower body of the cdf (here the lowest 50% of the latencies)
 
-        # x_min = float(all_latencies.quantile(0.95))
-        # x_max = float(all_latencies.max())
-        # axins.set_xlim(x_min, x_max)
-        # axins.set_ylim(0.95, 1.001)
-
-        x_min = float(all_latencies.min())
-        x_max = float(all_latencies.quantile(0.90))
+        x_min = float(all_latencies.quantile(0.95))
+        x_max = float(all_latencies.max())
         axins.set_xlim(x_min, x_max)
-        axins.set_ylim(0, 0.90)
+        axins.set_ylim(0.95, 1.001)
+
+        # x_min = float(all_latencies.min())
+        # x_max = float(all_latencies.quantile(0.90))
+        # axins.set_xlim(x_min, x_max)
+        # axins.set_ylim(0, 0.90)
 
         axins.tick_params(labelsize=10)
         axins.grid(True, alpha=0.3)
