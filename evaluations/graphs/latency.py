@@ -105,6 +105,8 @@ def main(res_path, out_path, clip, inset=False, no_title=False):
 
     cpu_csv_path = res_path[:-4] + "-TLOAD.csv"
     plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
+    if len(additional_data_sizes) > 1:
+        plot_cpu_load_vs_add_size(cpu_csv_path, out_path, topo_name, poisson_str, no_title)
 
 
 def get_median_std_grouped_for_df(df):
@@ -443,6 +445,117 @@ def plot_cpu_load(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
     fig.tight_layout()
     fig.savefig(
         f"{out_path}/cpu_load_{topo_name}_{poisson_str}.svg", bbox_inches="tight"
+    )
+    plt.close(fig)
+
+
+def plot_cpu_load_vs_add_size(cpu_csv_path, out_path, topo_name, poisson_str, no_title):
+    cpu_df = pd.read_csv(cpu_csv_path)
+    if cpu_df.empty:
+        print("no CPU data, skipping cpu vs add size plot")
+        return
+
+    cpu_df["CURRENT_TEST"] = cpu_df["CURRENT_TEST"].str.replace('"', "")
+
+    cpu_cols = [c for c in cpu_df.columns if c.startswith("y_CPU-")]
+    if not cpu_cols:
+        print("no CPU data, skipping cpu vs add size plot")
+        return
+
+    if "ADDITIONAL_DATA_SIZE" not in cpu_df.columns:
+        print("no ADDITIONAL_DATA_SIZE column, skipping cpu vs add size plot")
+        return
+
+    cpu_df["mean_utilization"] = cpu_df[cpu_cols].mean(axis=1)
+
+    order = ["FCQUIC", "FCQUIC_FEC", "QUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
+    labels = {
+        "FCQUIC": "FC-QUIC",
+        "FCQUIC_FEC": "FC-QUIC with FEC",
+        "QUIC": "Baseline QUIC",
+        "TCP": "Baseline TCP (+TLS)",
+        "TCP_NO_TLS": "Baseline TCP (NO TLS)",
+        "TOKIO_QUICHE": "Baseline Tokio-quiche",
+    }
+    palette = {
+        "FCQUIC": FCQUIC_COLOR,
+        "FCQUIC_FEC": FCQUIC_FEC_COLOR,
+        "QUIC": BASELINE_QUIC_COLOR,
+        "TCP": BASELINE_TCP_COLOR,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_COLOR,
+        "TOKIO_QUICHE": TOKIO_QUICHE_COLOR,
+    }
+    linestyles = {
+        "FCQUIC": FCQUIC_LINESTYLE,
+        "FCQUIC_FEC": FCQUIC_FEC_LINESTYLE,
+        "QUIC": BASELINE_QUIC_LINESTYLE,
+        "TCP": BASELINE_TCP_LINESTYLE,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_LINESTYLE,
+        "TOKIO_QUICHE": TOKIO_QUICHE_LINESTYLE,
+    }
+    markers = {
+        "FCQUIC": FCQUIC_MARKER,
+        "FCQUIC_FEC": FCQUIC_FEC_MARKER,
+        "QUIC": BASELINE_QUIC_MARKER,
+        "TCP": BASELINE_TCP_MARKER,
+        "TCP_NO_TLS": BASELINE_TCP_NO_TLS_MARKER,
+        "TOKIO_QUICHE": TOKIO_QUICHE_MARKER,
+    }
+
+    grouped = (
+        cpu_df[["CURRENT_TEST", "ADDITIONAL_DATA_SIZE", "mean_utilization"]]
+        .groupby(["CURRENT_TEST", "ADDITIONAL_DATA_SIZE"])["mean_utilization"]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
+    grouped["ci"] = 1.96 * grouped["std"] / np.sqrt(grouped["count"])
+    grouped = grouped[grouped["CURRENT_TEST"].isin(order)]
+
+    sns.set_style("whitegrid")
+    height = 5
+    width = 10
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    for impl in order:
+        sub = grouped[grouped["CURRENT_TEST"] == impl].sort_values("ADDITIONAL_DATA_SIZE")
+        if sub.empty:
+            continue
+        ax.errorbar(
+            sub["ADDITIONAL_DATA_SIZE"],
+            sub["mean"],
+            yerr=sub["ci"],
+            label=labels[impl],
+            color=palette[impl],
+            linestyle=linestyles[impl],
+            marker=markers[impl],
+            markersize=MARKERSIZE,
+            lw=LINEWIDTH,
+            capsize=4,
+            capthick=LINEWIDTH,
+            elinewidth=LINEWIDTH * 0.8,
+        )
+
+    ax.set_xlabel("Additional data size (bytes)")
+    ax.set_ylabel("CPU utilization percentage")
+    ax.set_ybound(0, 100)
+    ax.grid(True, alpha=0.3)
+    ax.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=2,
+        mode="expand",
+        borderaxespad=0.0,
+    )
+    if not no_title:
+        ax.set_title(
+            f"Server CPU load vs additional data size ({poisson_str}): {topo_name.replace('%', 'per')}",
+            fontsize=FONT_SIZE,
+        )
+    fig.tight_layout()
+    fig.savefig(
+        f"{out_path}/cpu_load_vs_add_size_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
     )
     plt.close(fig)
 

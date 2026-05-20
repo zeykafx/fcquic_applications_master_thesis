@@ -20,6 +20,7 @@ from style import (
     BASELINE_TCP_NO_TLS_MARKER,
     CONFIDENCE_BAND_OPACITY,
     FCQUIC_COLOR,
+    FONT_SIZE,
     FCQUIC_FEC_COLOR,
     FCQUIC_FEC_LINESTYLE,
     FCQUIC_FEC_MARKER,
@@ -205,6 +206,149 @@ def plot_average_latency_vs_receivers(
     plt.close(fig)
 
 
+def _plot_ecdfs(
+    ax,
+    df_fcquic,
+    df_fcquic_fec,
+    df_baseline,
+    df_tcp,
+    df_tcp_no_tls,
+    df_tokio_quiche,
+    add_labels=True,
+):
+    if len(df_fcquic) > 0:
+        ax.ecdf(
+            (df_fcquic["y_LATENCY"] / 1000),
+            label="FC-QUIC" if add_labels else None,
+            color=FCQUIC_COLOR,
+            linestyle=FCQUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_fcquic_fec) > 0:
+        ax.ecdf(
+            (df_fcquic_fec["y_LATENCY"] / 1000),
+            label="FC-QUIC with FEC" if add_labels else None,
+            color=FCQUIC_FEC_COLOR,
+            linestyle=FCQUIC_FEC_LINESTYLE,
+            lw=LINEWIDTH + 0.2,
+        )
+    if len(df_baseline) > 0:
+        ax.ecdf(
+            (df_baseline["y_LATENCY"] / 1000),
+            label="Baseline QUIC" if add_labels else None,
+            color=BASELINE_QUIC_COLOR,
+            linestyle=BASELINE_QUIC_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp) > 0:
+        ax.ecdf(
+            (df_tcp["y_LATENCY"] / 1000),
+            label="Baseline TCP (+TLS)" if add_labels else None,
+            color=BASELINE_TCP_COLOR,
+            linestyle=BASELINE_TCP_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tcp_no_tls) > 0:
+        ax.ecdf(
+            (df_tcp_no_tls["y_LATENCY"] / 1000),
+            label="Baseline TCP (NO TLS)" if add_labels else None,
+            color=BASELINE_TCP_NO_TLS_COLOR,
+            linestyle=BASELINE_TCP_NO_TLS_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+    if len(df_tokio_quiche) > 0:
+        ax.ecdf(
+            (df_tokio_quiche["y_LATENCY"] / 1000),
+            label="Baseline Tokio-quiche" if add_labels else None,
+            color=TOKIO_QUICHE_COLOR,
+            linestyle=TOKIO_QUICHE_LINESTYLE,
+            lw=LINEWIDTH,
+        )
+
+
+def plot_cdf_max_clients(data_df, out_path, topo_name, poisson_str, no_title):
+    max_clients = data_df["NUM_CLIENTS"].max()
+    df = data_df[data_df["NUM_CLIENTS"] == max_clients]
+
+    df_baseline = df[df["CURRENT_TEST"] == "QUIC"]
+    df_fcquic = df[df["CURRENT_TEST"] == "FCQUIC"]
+    df_fcquic_fec = df[df["CURRENT_TEST"] == "FCQUIC_FEC"]
+    df_tcp = df[df["CURRENT_TEST"] == "TCP"]
+    df_tcp_no_tls = df[df["CURRENT_TEST"] == "TCP_NO_TLS"]
+    df_tokio_quiche = df[df["CURRENT_TEST"] == "TOKIO_QUICHE"]
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 5
+    fig = plt.figure(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    ax = plt.gca()
+    _plot_ecdfs(ax, df_fcquic, df_fcquic_fec, df_baseline, df_tcp, df_tcp_no_tls, df_tokio_quiche)
+
+    plt.ylabel("CDF")
+    plt.xlabel("Latency (ms)")
+    plt.ylim(0, 1)
+    if not no_title:
+        plt.title(
+            f"Cumulative distribution of latency ({poisson_str}): {topo_name.replace('%', 'per')} ({max_clients} clients)",
+            fontsize=FONT_SIZE,
+        )
+
+    axins = ax.inset_axes([0.4, 0.06, 0.55, 0.5])  # type: ignore
+    axins.set_facecolor("white")
+    for spine in axins.spines.values():
+        spine.set_edgecolor("black")
+        spine.set_linewidth(1.0)
+
+    _plot_ecdfs(
+        axins,
+        df_fcquic,
+        df_fcquic_fec,
+        df_baseline,
+        df_tcp,
+        df_tcp_no_tls,
+        df_tokio_quiche,
+        add_labels=False,
+    )
+
+    all_latencies = (
+        pd.concat(
+            [
+                df_fcquic["y_LATENCY"],
+                df_fcquic_fec["y_LATENCY"],
+                df_baseline["y_LATENCY"],
+                df_tcp["y_LATENCY"],
+                df_tcp_no_tls["y_LATENCY"],
+                df_tokio_quiche["y_LATENCY"],
+            ]
+        )
+        / 1000
+    )
+
+    x_min = float(all_latencies.quantile(0.90))
+    x_max = float(all_latencies.max())
+    axins.set_xlim(x_min, x_max)
+    axins.set_ylim(0.9)
+    axins.tick_params(labelsize=8)
+    axins.grid(True, alpha=0.3)
+
+    ax.legend(
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="lower left",
+        ncols=2,
+        mode="expand",
+        borderaxespad=0.0,
+    )
+    plt.grid(True, alpha=0.3)
+    fig.tight_layout()
+    plt.savefig(
+        f"{out_path}/cdf_{max_clients}clients_{topo_name}_{poisson_str}.svg",
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
 def plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title):
     order = ["FCQUIC", "TCP", "TCP_NO_TLS", "TOKIO_QUICHE"]
     labels = {
@@ -378,6 +522,7 @@ def plot_cpu_vs_receivers(
 
     cpu_df["CURRENT_TEST"] = cpu_df["CURRENT_TEST"].str.replace('"', "")
 
+    # cpu_df = cpu_df[cpu_df["NUM_CLIENTS"] < 91]
     cpu_cols = [c for c in cpu_df.columns if c.startswith("y_CPU-")]
     if not cpu_cols:
         print("no CPU data, skipping cpu line plot")
@@ -413,7 +558,7 @@ def plot_cpu_vs_receivers(
     }
 
     height = 5
-    width = 11
+    width = 9
     fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
@@ -577,7 +722,10 @@ def main(res_path, out_path, no_title=False):
     # clean up the messy quotes that npf adds
     data_df["CURRENT_TEST"] = data_df["CURRENT_TEST"].str.replace('"', "")
 
+    # data_df = data_df[data_df["NUM_CLIENTS"] < 91]
+
     plot_goodput_vs_sweep(data_df, out_path, topo_name, poisson_str, no_title)
+    plot_cdf_max_clients(data_df, out_path, topo_name, poisson_str, no_title)
 
     # from microseconds to milliseconds
     data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
