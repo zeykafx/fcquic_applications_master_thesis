@@ -3,7 +3,7 @@
 	url = https://github.com/zeykafx/fcquic_chat.git
 [submodule "multicast-quic"]
 	path = multicast-quic
-	url = git@forge.uclouvain.be:codetry/multicast-quic.git
+	url = https://github.com/zeykafx/flexicast-quic.git
 [submodule "fcquic_relay"]
 	path = fcquic_relay
 	url = https://github.com/zeykafx/fcquic_relay.git
