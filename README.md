@@ -1,6 +1,6 @@
 # Evaluating Flexicast QUIC through real-world applications
 
-This repository contains the source code and evaluation scripts for my master thesis on Flexicast QUIC's ability to efficiently, reliably, and securely deliver application traffic for applications like a multicast chat, as well as a hierarchical architecture with relay nodes to offload ACK handling and retransmissions from an overloaded source.
+This repository contains the source code and evaluation scripts for my master's thesis on Flexicast QUIC's ability to efficiently and reliably to deliver application data for non bandwidth demanding use cases like a multicast chat application. The second part focused on designing and implementing Relays that act as intermediary sources in order to offload ACK handling and retransmissions from the main source.
 
 ## Repo structure
 
@@ -10,8 +10,8 @@ The [evaluations/](./evaluations/) directory contains all of the test scripts, t
 
 - Local tests ([evaluations/tests/](./evaluations/tests/)): NPF test scripts, used for the multicast chat eval on many many different topologies.
 
-- Topologies ([evaluations/topologies/](./evaluations/topologies/)): Automated network namespace topology creation scripts based on a YAML configuration file, with routers using FRRouting.
-  - These scripts are based on [Anthony Doerane's work](https://github.com/Aperence/FFSexp3-master-thesis/tree/main/evaluation/topologies).
+- Topologies ([evaluations/topologies/](./evaluations/topologies/)): Scripts to setup topologies in network namespaces with a YAML topo file. Clients and routers run in network namespaces, and routers use FRRouting.
+  - These scripts are based on [Anthony Doeraene's work](https://github.com/Aperence/FFSexp3-master-thesis/tree/main/evaluation/topologies).
 
 - Grid'5000 scripts ([evaluations/grid5000/](./evaluations/grid5000/)): Experiment notebooks used to run the large scale relay evaluations on Grid'5000 but also used to evaluate the multicast chat on a single server.
   - [chat_eval_single_node/](./evaluations/grid5000/chat_eval_single_node/): Notebook used for the multicast chat app eval on a single Grid'5000 server
