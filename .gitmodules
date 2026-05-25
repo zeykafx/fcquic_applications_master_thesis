@@ -7,9 +7,3 @@
 [submodule "fcquic_relay"]
 	path = fcquic_relay
 	url = https://github.com/zeykafx/fcquic_relay.git
-[submodule "slides_master_thesis_meetings"]
-	path = slides_master_thesis_meetings
-	url = https://github.com/zeykafx/slides_master_thesis_meetings.git
-[submodule "master_thesis_manuscript"]
-	path = master_thesis_manuscript
-	url = https://github.com/zeykafx/master_thesis_manuscript.git
