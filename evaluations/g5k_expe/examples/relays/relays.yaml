@@ -1,0 +1,38 @@
+topology:
+  name: "fcquic_relay_eval_multisite"
+  wall_time: "2hr"
+  relay_nodes: false # whether to add one relay machine in each cluster
+  netns_per_client: 5 # number of network namespaces to run on each client
+
+  server:
+    cluster: "chirop" # Lille
+    nodes: 1
+    # node: "chirop-5.lille.grid5000.fr"   # optional: pin a specific machine
+
+  # each site has one router + num_clients clients and one relay,
+  # all reserved in the given cluster. `name` is used to build role names:
+  #   router_<name>, client_<name>, relay_<name>
+  sites:
+    - name: nancy
+      cluster: gros
+      num_clients: 5
+
+    - name: rennes
+      cluster: parasilo
+      num_clients: 5
+    - name: nantes
+      cluster: ecotype
+      num_clients: 5
+    - name: lyon
+      cluster: nova
+      num_clients: 5
+
+  # links are established between routers in different clusters
+  # GRE tunnels are established between the two routers, with OSPF running over it.
+  # endpoints must be router_server or router_<site name>.
+  links:
+    - [router_server, router_nancy]      # src -> nancy
+    - [router_nancy, router_rennes]      # nancy -> rennes
+    - [router_nancy, router_lyon]        # nancy -> lyon
+    - [router_rennes, router_nantes]     # rennes -> nantes
+
