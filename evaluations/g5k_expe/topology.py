@@ -33,6 +33,7 @@ class Site:
 class Topology:
     name: str
     wall_time: timedelta
+    frrouting_version: str
     relay_nodes: bool
     server: Server
     sites: list[Site]
@@ -105,6 +106,7 @@ def load_topology(path: str | Path) -> Topology:
     walltime = parse_walltime(topo_raw.get("wall_time", "1hr"))
 
     use_relays: bool = topo_raw.get("relay_nodes", False)
+    frr_ver = topo_raw.get("frrouting_version", "frr-10.4")
 
     server_raw = topo_raw.get("server") or {}
     server = Server(
@@ -133,6 +135,7 @@ def load_topology(path: str | Path) -> Topology:
         sites=sites,
         links=links,
         relay_nodes=use_relays,
+        frrouting_version=frr_ver
     )
     topo.validate()
     return topo

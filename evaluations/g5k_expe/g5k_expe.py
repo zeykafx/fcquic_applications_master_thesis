@@ -45,11 +45,17 @@ class G5KExpe:
                 "This job reservation will violate the usage policy and will cross the day night boundary"
             )
 
-    def setup_en_conf(self):
+    def setup_enoslib_conf(self) -> en.G5k:
+        """
+        Sets up the enoslib reservation for the test as defined in the topology file
+        Returns the G5k `provider` object containing the machines to reserve,...
+        """
         # Display some general information about the library
         en.check()
         # Enable rich logging
         _ = en.init_logging()
+
+        server_cluster = self.cluster_to_site[self.topology.server.cluster]
 
         conf = (
             en.G5kConf.from_settings(
@@ -64,34 +70,24 @@ class G5KExpe:
                 cluster=self.topology.server.cluster,
                 nodes=1,
             )
-            # # server
-            # .add_machine(
-            #     roles=["server"],
-            #     servers=["chirop-5.lille.grid5000.fr"],
-            #     # cluster=SERVER_CLUSTER,
-            #     # nodes=NUM_SERVER_NODES,
-            # ).add_network(
-            #     id="subnet_server",
-            #     type="slash_22",
-            #     roles=["subnet", "subnet_server"],
-            #     site=cluster_to_site[SERVER_CLUSTER],
-            # )
-        )
-        for i, serv in enumerate(self.topology.server.nodes):
-            conf = conf.add_machine(
+            .add_machine(
                 roles=["server"],
-                servers=["chirop-5.lille.grid5000.fr"],
-                # cluster=SERVER_CLUSTER,
-                # nodes=NUM_SERVER_NODES,
-            ).add_network(
+                # servers=["chirop-5.lille.grid5000.fr"],
+                site=server_cluster,
+                nodes=self.topology.server.nodes,
+            )
+            .add_network(
                 id="subnet_server",
                 type="slash_22",
                 roles=["subnet", "subnet_server"],
-                site=cluster_to_site[SERVER_CLUSTER],
+                site=server_cluster,
             )
+        )
 
         # we need to add one client router + clients + relay + subnet for each client cluster
-        for i, client_cluster in enumerate(CLIENT_CLUSTERS):
+
+        for i, client_cluster in enumerate(self.topology.client_clusters):
+
             conf = (
                 conf
                 # add only one client router
@@ -105,19 +101,79 @@ class G5KExpe:
                     roles=["client", f"client_{i}"],
                     cluster=client_cluster["cluster"],
                     nodes=client_cluster["num_clients"],
-                )
-                # one relay per client cluster
-                .add_machine(
-                    roles=["relay", f"relay_{i}"],
-                    cluster=client_cluster["cluster"],
-                    nodes=1,
                 ).add_network(
                     id=f"subnet_client_{i}",
                     type="slash_22",
                     roles=["subnet", "subnet_client", f"subnet_client_{i}"],
-                    site=cluster_to_site[client_cluster["cluster"]],
+                    site=self.cluster_to_site[client_cluster["cluster"]],
                 )
             )
+            if self.topology.relay_nodes:
+                # if relays are used, then add one relay machine per client cluster
+                conf = conf.add_machine(
+                    roles=["relay", f"relay_{i}"],
+                    cluster=client_cluster["cluster"],
+                    nodes=1,
+                )
 
         # This will validate the configuration, but not reserve resources yet
         provider = en.G5k(conf)
+        return provider
+
+    def reserve_res(self, provider: en.G5k) -> en.Roles:
+        """
+        Reserves the resources as defined in `provider`
+        Returns the roles obtained (or not) following the reservation
+        """
+        print("Reserving resources now, might take a while...")
+
+        # Get actual resources
+        roles, networks = provider.init()
+
+        print("Obtained resources:")
+        print(f"Roles: {roles}")
+        print(f"Networks: {networks}")
+
+        # Fill in network information from nodes
+        roles: en.Roles = en.sync_info(roles, networks)
+
+        with en.actions(roles=roles) as a:
+            a.apt(task_name="Install traceroute", name="traceroute", state="present")
+            a.apt(task_name="Install btop", name="btop", state="present")
+            a.apt(task_name="Install htop", name="htop", state="present")
+            a.apt(task_name="Install tcpdump", name="tcpdump", state="present")
+            a.apt(
+                task_name="Install python",
+                name=["python3-pip", "python-is-python3"],
+                state="present",
+            )
+
+        with en.actions(roles=roles["router"], gather_facts=True) as a:
+            a.file(
+                task_name="Ensure apt keyring directory exists",
+                path="/usr/share/keyrings",
+                state="directory",
+                mode="0755",
+            )
+            a.get_url(
+                task_name="Download FRR GPG key",
+                url="https://deb.frrouting.org/frr/keys.gpg",
+                dest="/usr/share/keyrings/frrouting.gpg",
+                mode="0644",
+            )
+            a.apt_repository(
+                task_name="Add FRR apt repository",
+                repo="deb [signed-by=/usr/share/keyrings/frrouting.gpg] https://deb.frrouting.org/frr {{ ansible_distribution_release }} " + self.topology.frrouting_version,
+                filename="frr",
+                state="present",
+            )
+            a.apt(
+                task_name="Install FRR packages",
+                name=["frr", "frr-pythontools"],
+                state="present",
+                update_cache=True,
+            )
+            results = a.results
+            print(f"Results ")
+
+        return roles

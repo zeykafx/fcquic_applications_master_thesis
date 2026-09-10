@@ -3,6 +3,8 @@ topology:
   wall_time: "2hr"
   relay_nodes: false # whether to add one relay machine in each cluster
   netns_per_client: 5 # number of network namespaces to run on each client
+  # see the possible frrouting version at https://deb.frrouting.org/
+  frrouting_ver: "frr-10.4"
 
   server:
     cluster: "chirop" # Lille
