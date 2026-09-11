@@ -33,7 +33,9 @@ class Site:
 class Topology:
     name: str
     wall_time: timedelta
+    netns_per_client: int
     frrouting_version: str
+    router_template: str
     relay_nodes: bool
     server: Server
     sites: list[Site]
@@ -106,6 +108,10 @@ def load_topology(path: str | Path) -> Topology:
     walltime = parse_walltime(topo_raw.get("wall_time", "1hr"))
 
     use_relays: bool = topo_raw.get("relay_nodes", False)
+    netns_per_client: int = topo_raw.get("netns_per_client", 5)
+    router_template: str = topo_raw.get(
+        "router_template", "base_router_config_ospf.frr"
+    )
     frr_ver = topo_raw.get("frrouting_version", "frr-10.4")
 
     server_raw = topo_raw.get("server") or {}
@@ -135,7 +141,9 @@ def load_topology(path: str | Path) -> Topology:
         sites=sites,
         links=links,
         relay_nodes=use_relays,
-        frrouting_version=frr_ver
+        netns_per_client=netns_per_client,
+        frrouting_version=frr_ver,
+        router_template=router_template,
     )
     topo.validate()
     return topo
