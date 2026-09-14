@@ -41,11 +41,6 @@ class Topology:
     sites: list[Site]
     links: list[tuple[str, str]]
 
-    # name helpers
-    @staticmethod
-    def router_role(site_name: str) -> str:
-        return f"router_{site_name}"
-
     @staticmethod
     def client_role(site_name: str) -> str:
         return f"client_{site_name}"
@@ -55,10 +50,6 @@ class Topology:
         return f"relay_{site_name}"
 
     # all machines based on respective roles
-    @property
-    def router_roles(self) -> list[str]:
-        return ["router_server", *(self.router_role(s.name) for s in self.sites)]
-
     @property
     def client_roles(self) -> list[str]:
         return [self.client_role(s.name) for s in self.sites]
@@ -77,20 +68,6 @@ class Topology:
     @property
     def topology_links(self) -> list[tuple[str, str]]:
         return self.links
-
-    # check links defined in topo file,
-    # the endpoints of the links must be valid routers
-    def validate(self) -> None:
-        valid_routers = set(self.router_roles)
-        for a, b in self.links:
-            for endpoint in (a, b):
-                if endpoint not in valid_routers:
-                    raise ValueError(
-                        f"link endpoint {endpoint!r} is not a known router role "
-                        f"(known: {sorted(valid_routers)})"
-                    )
-        if len({s.name for s in self.sites}) != len(self.sites):
-            raise ValueError("site names must be unique")
 
 
 def load_topology(path: str | Path) -> Topology:
@@ -145,5 +122,4 @@ def load_topology(path: str | Path) -> Topology:
         frrouting_version=frr_ver,
         router_template=router_template,
     )
-    topo.validate()
     return topo

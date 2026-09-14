@@ -1,15 +1,18 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import islice
+from typing import Sequence
 import os
 from pathlib import Path
+import subprocess
+import concurrent.futures
 from grid5000 import Grid5000
 import enoslib as en
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from jinja2 import Template
 from ipaddress import ip_address, ip_network
-from topology import Topology, load_topology
+from .topology import Topology, load_topology
 
 
 class G5KExpe:
@@ -53,6 +56,7 @@ class G5KExpe:
 
         self.gateway_ip_per_cluster = {}
 
+        self.current_provider: en.G5k | None = None
         self.router_tunnels = defaultdict(list)
 
     def usage_policy_check(self):
@@ -87,14 +91,7 @@ class G5KExpe:
                 roles=["router", "router_server"],
                 cluster=self.topology.server.cluster,
                 nodes=1,
-            )
-            .add_machine(
-                roles=["server"],
-                # servers=["chirop-5.lille.grid5000.fr"],
-                site=server_cluster,
-                nodes=self.topology.server.nodes,
-            )
-            .add_network(
+            ).add_network(
                 id="subnet_server",
                 type="slash_22",
                 roles=["subnet", "subnet_server"],
@@ -102,9 +99,23 @@ class G5KExpe:
             )
         )
 
+        if self.topology.server.node is not None:
+            conf = conf.add_machine(
+                roles=["server"],
+                servers=[self.topology.server.node],
+                nodes=self.topology.server.nodes,
+            )
+        else:
+            conf = conf.add_machine(
+                roles=["server"],
+                cluster=self.topology.server.cluster,
+                nodes=self.topology.server.nodes,
+            )
+
         # we need to add one client router + clients + relay + subnet for each client cluster
 
         for i, client_cluster in enumerate(self.topology.client_clusters):
+            # print(client_cluster)
 
             conf = (
                 conf
@@ -136,6 +147,7 @@ class G5KExpe:
 
         # This will validate the configuration, but not reserve resources yet
         provider = en.G5k(conf)
+        self.current_provider = provider
         return provider
 
     def reserve_res(self, provider: en.G5k):
@@ -418,6 +430,11 @@ class G5KExpe:
         tunnel_base = int(ip_address("192.168.0.0"))
 
         for link_idx, (role_a, role_b) in enumerate(self.topology.links):
+            # print(f"link_idx: {link_idx}")
+            # print(f"role_a: {role_a}")
+            # print(f"role_b: {role_b}")
+            # print(f"roles: {self.roles}")
+
             host_a = self.roles[role_a][0]
             host_b = self.roles[role_b][0]
 
@@ -497,6 +514,81 @@ class G5KExpe:
 
         print(f"Router tunnels: {dict(self.router_tunnels)}")
 
+    def parse_subnet(self, subnet_obj):
+        for attr in ("network", "cidr", None):
+            # try to get subnet_obj.attr (use the string repr of subnet_obj and parse it with ip_network if it's a string)
+            val = (
+                str(getattr(subnet_obj, attr, subnet_obj)) if attr else str(subnet_obj)
+            )
+            if not val:
+                continue
+            try:
+                return ip_network(val if "/" in val else f"{val}/22", strict=False)
+            except ValueError:
+                print(f"Failed to parse {val} ip network")
+                continue
+        raise RuntimeError(f"Can't parse subnet: {subnet_obj!r}")
+
+    def get_router_subnet_or_global_ip(
+        self, host, role: str, get_subnet_ip: bool
+    ) -> str:
+        local_subnet = ip_network(
+            "10.0.0.0/8"
+        )  # the subnets /22 we get from g5k are all in the 10..../8 subnet, can't be more specific than that sadly
+        # since we fetched the global address for the routers and assigned them a local address
+
+        host_ips = []
+        for extra_ip in host.extra.get("ips", []):
+            extra_ip_addr = ip_address(extra_ip)
+            # if we want to fetch the local address, then only add the address if it is in the local subnet
+            if extra_ip_addr in local_subnet and get_subnet_ip:
+                host_ips.append(str(extra_ip))
+
+            # if we want to fetch the global address, then only add the address if it NOT in the local subnet
+            elif not get_subnet_ip and extra_ip_addr not in local_subnet:
+                host_ips.append(str(extra_ip))
+
+        if host_ips:
+            return host_ips[0]
+
+        role_ips = [str(ip) for ip in self.node_ips.get(role, [])]
+        if role_ips:
+            return role_ips[0]
+
+        raise ValueError(f"Could get prod ip for '{host.address}'")
+
+    def get_default_gateway(self, address):
+        # get the default gateway from the node via ssh
+        # could just hardcode these values based on the info on the website...
+        result = subprocess.run(
+            ["ssh", address, "ip -4 route show default"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            raise RuntimeError(
+                f"No default route on {address}: {result.stderr.strip()}"
+            )
+
+        out = result.stdout.strip().splitlines()[0].split()
+        if "via" not in out:
+            raise RuntimeError(f"No gateway used in the default route: {address}")
+
+        return out[out.index("via") + 1]
+
+    def pick_loopback(self, subnet_obj, reserved):
+        # since the booked subnets are /22, we get 3 different /24 subnets, so we just make sure that the routers have a loopback address in a
+        # /24 subnet that we wont pick for the clients, just to be safe
+        subnet = self.parse_subnet(subnet_obj)
+        for ip_int in range(
+            int(subnet.broadcast_address) - 1, int(subnet.network_address), -1
+        ):
+            candidate = str(ip_address(ip_int))
+            if candidate not in reserved:
+                return candidate
+        raise ValueError(f"No free loopback in {subnet}")
+
     def frrouting_setup(self):
         # router mapping: (role, subnet_key) for every router is built dynamically
         ROUTER_MAPPING: list[tuple[str, str]] = [
@@ -509,3 +601,219 @@ class G5KExpe:
         DAEMONS_FILE = "./daemons"
         OUTPUT_DIR = Path("./generated_frr_configs")
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+        with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+            template = Template(f.read())
+
+        reserved_ips = {str(ip) for ips in self.node_ips.values() for ip in ips}
+
+        for idx, (role, subnet_key) in enumerate(ROUTER_MAPPING):
+
+            if not (subnet_key in self.networks and self.networks[subnet_key]):
+                raise RuntimeError(f"Missing subnet {subnet_key}")
+
+            host = self.roles[role][0]
+            iface = self.prod_interfaces_per_node[host.address]
+            subnet_obj = self.networks[subnet_key][0]
+
+            prod_ip = self.get_router_subnet_or_global_ip(host, role, True)
+            global_ip = self.get_router_subnet_or_global_ip(host, role, False)
+            net_addr = str(self.parse_subnet(subnet_obj).network_address)
+            lo_addr = self.pick_loopback(subnet_obj, reserved_ips)
+            reserved_ips.add(lo_addr)
+            gateway = self.get_default_gateway(host.address)
+
+            router_id = idx + 1
+            is_server = role == "router_server"
+
+            # REMINDER: highest bsr priority wins
+            # but lowest rp priority wins
+            bsr_prio = router_id + 100 if is_server else router_id
+            rp_prio = 0 if is_server else router_id + 100
+
+            tunnels = [
+                {"iface": t["iface"], "ip": t["ip"], "network": t["network"]}
+                for t in self.router_tunnels.get(role, [])
+            ]
+
+            config = template.render(
+                lo_address=lo_addr,
+                prod_iface=iface,
+                prod_net_ip=prod_ip,
+                global_ip=global_ip,
+                prod_network=net_addr,
+                tunnels=tunnels,
+                router_id=f"{router_id}.{router_id}.{router_id}.{router_id}",
+                isis_router_id=router_id + 1,
+                rp_prio=rp_prio,
+                bsr_prio=bsr_prio,
+                gateway=gateway,
+            )
+
+            # write locally and upload file to remote
+            local_path = OUTPUT_DIR / f"{host.address.replace('/', '_')}.frr.conf"
+            local_path.write_text(config, encoding="utf-8")
+
+            remote = f"root@{host.address}:/etc/frr"
+            subprocess.run(["scp", str(local_path), f"{remote}/frr.conf"], check=True)
+            subprocess.run(["scp", DAEMONS_FILE, f"{remote}/daemons"], check=True)
+            en.run_command(
+                "sudo systemctl restart frr",
+                task_name=f"restart_frr_{host.address}",
+                roles=host,
+                gather_facts=False,
+            )
+
+            print(
+                f"[{role}] {host.address}  prod={prod_ip}  loopback={lo_addr}  gateway={gateway}  tunnels={len(tunnels)}"
+            )
+
+    def get_global_ip_for_router_role(self, router_role) -> str:
+        local_subnet = ip_network(
+            "10.0.0.0/8"
+        )  # the subnets we get are in 10..../8, can't be more specific than that sadly
+        # since we fetched the global address for the routers and assigned them a local address
+        # and we want the global address, we filter out the local address
+
+        host_ips = [
+            str(ip)
+            for ip in self.node_ips[router_role]
+            if ip_address(ip) not in local_subnet
+        ]
+        if host_ips:
+            return host_ips[0]
+        raise RuntimeError(f"Could get prod ip for {router_role}")
+
+    def set_default_route_on_host(self, host_alias, cmd, gateway_ip, host_iface):
+        result = subprocess.run(
+            ["ssh", host_alias, cmd],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"Error on {host_alias}: {result.stderr.strip()}")
+        else:
+            out = result.stdout.strip().splitlines()
+            if out:
+                print(out[0])
+            print(f"{host_alias}'s default route is {gateway_ip} on {host_iface}")
+
+    def setup_default_routes(self):
+        # figure out the gateway router for the server, each client, and each relay
+        gateway_router_role = {"server": "router_server"}
+        for i in range(len(self.topology.client_clusters)):
+            gateway_router_role[f"client_{i}"] = f"router_client_{i}"
+            gateway_router_role[f"relay_{i}"] = f"router_client_{i}"
+
+        # Collect all tasks (host_alias, command, gateway_ip, iface) first, then run in parallel
+        route_tasks = []
+
+        for role, router_role in gateway_router_role.items():
+
+            # skip any bad role written above
+            if role not in self.roles or not self.roles[role]:
+                print(f"Unknown role: {role}")
+                continue
+
+            gateway_ip = self.get_global_ip_for_router_role(router_role)
+            print(gateway_ip)
+
+            for host in self.roles[role]:
+                host_iface = self.prod_interfaces_per_node.get(host.address)
+                if host_iface is None:
+                    raise RuntimeError(
+                        f"Missing prod interface for node '{host.address}'"
+                    )
+
+                cmd = "; ".join(
+                    [
+                        f"sudo ip route replace default via {gateway_ip} dev {host_iface}",
+                        "sudo ip route flush cache",
+                        "ip route show default",
+                    ]
+                )
+
+                route_tasks.append((host.alias, cmd, gateway_ip, host_iface))
+
+        print(f"setting default routes on {len(route_tasks)} nodes")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            pool.map(lambda t: self.set_default_route_on_host(*t), route_tasks)
+
+    def push_binaries(
+        self,
+        bin_dir: str | Path,
+        cert_dir: str | Path,
+        *,
+        remote_bin_dir: str = "/tmp/bin",
+        remote_cert_dir: str = "/tmp",
+        remote_log_root: str = "/tmp/logs",
+        server_binaries: Sequence[str] = ("server", "client"),
+        relay_binaries: Sequence[str] = ("fcquic_relay", "app_relay"),
+        certs: Sequence[str] = ("cert.crt", "cert.key"),
+        binary_mode: str = "0755",
+        cert_mode: str = "0644",
+    ) -> None:
+        """
+        pushes the client, server, and relay binaries to the nodes.
+        The server and client binaries are sent to every nodes (clients and server).
+        The relay binary is sent only to the relay nodes if relays are enabled.
+        certs are sent to every node, and the log dirs are setup
+        """
+        bin_dir = Path(bin_dir)
+        cert_dir = Path(cert_dir)
+
+        # look for the files and certs, error out if we can't find them
+        for name in [*server_binaries, *relay_binaries]:
+            if not (bin_dir / name).is_file():
+                raise FileNotFoundError(f"{name} not found in {bin_dir}")
+        for name in certs:
+            if not (cert_dir / name).is_file():
+                raise FileNotFoundError(f"'{name}' not found in {cert_dir}")
+
+        server_and_clients = self.roles["server"] + self.roles["client"]
+
+        # relays are reserved as relay_0, relay_1, ... (one per client cluster)
+        relay_hosts = [
+            host
+            for i in range(len(self.topology.client_clusters))
+            for host in (self.roles[f"relay_{i}"] if self.topology.relay_nodes else [])
+        ]
+
+        def push(hosts, binaries: Sequence[str], log_subdirs: Sequence[str]):
+            with en.actions(roles=hosts) as a:
+                a.file(path=remote_bin_dir, state="directory", mode="0755")
+                for subdir in log_subdirs:
+                    a.file(
+                        path=f"{remote_log_root}/{subdir}",
+                        state="directory",
+                        mode="0755",
+                    )
+                for name in binaries:
+                    a.copy(
+                        src=str(bin_dir / name),
+                        dest=f"{remote_bin_dir}/{name}",
+                        mode=binary_mode,
+                    )
+                for name in certs:
+                    a.copy(
+                        src=str(cert_dir / name),
+                        dest=f"{remote_cert_dir}/{name}",
+                        mode=cert_mode,
+                    )
+
+        push(server_and_clients, server_binaries, ["server", "client"])
+        print(
+            f"Pushed {list(server_binaries)} to {len(server_and_clients)} server/client node(s)"
+        )
+
+        if relay_hosts:
+            push(relay_hosts, relay_binaries, ["relay"])
+            print(f"Pushed {list(relay_binaries)} to {len(relay_hosts)} relay node(s)")
+
+    def stop_reservation(self):
+        if self.current_provider is not None:
+            self.current_provider.destroy()
+            print("Reservation stopped.")
+        else:
+            print("No reservation ongoing, nothing to stop")
