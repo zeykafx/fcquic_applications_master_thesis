@@ -2,7 +2,7 @@ topology:
   name: "g5k_mcast_eval"
   wall_time: "2hr"
   relay_nodes: false # whether to add one relay machine in each cluster
-  netns_per_client: 5 # number of network namespaces to run on each client
+  netns_per_client: 1 # number of network namespaces to run on each client
   # see the possible frrouting version at https://deb.frrouting.org/
   frrouting_version: "frr-10.4"
   router_template: "base_router_config_ospf.frr" # path to the router configuration template
@@ -14,27 +14,26 @@ topology:
 
   # each site has one router + num_clients clients and one relay,
   # all reserved in the given cluster. 
-  # `name` is used to build role names: router_<name>, client_<name>, relay_<name>
   sites:
     - name: nancy
       cluster: gros
-      num_clients: 5
+      num_clients: 1
     - name: rennes
       cluster: parasilo
-      num_clients: 5
-    # - name: nantes
-    #   cluster: ecotype
-    #   num_clients: 5
+      num_clients: 1
+    - name: nantes
+      cluster: ecotype
+      num_clients: 1
     - name: lyon
       cluster: nova
-      num_clients: 5
+      num_clients: 1
 
   # links are established between routers in different clusters
   # GRE tunnels are established between the two routers, with OSPF running over it.
-  # endpoints must be router_server or router_<site name>.
+  # endpoints must be router_server or router_client_CLIENT-CLUSTER-ID
   links:
-    - [router_server, router_client_0]      # src -> nancy
+    - [router_server, router_client_0]             # src -> nancy
     - [router_client_0, router_client_1]           # nancy -> rennes
-    - [router_client_0, router_client_2]           # nancy -> lyon
-    # - [router_rennes, router_nantes]     # rennes -> nantes
+    - [router_client_0, router_client_3]           # nancy -> lyon
+    - [router_client_0, router_client_2]           # rennes -> nantes
 

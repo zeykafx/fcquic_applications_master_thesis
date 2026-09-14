@@ -1,0 +1,43 @@
+[package]
+name = "g5k_mcast_eval"
+version = "0.1.0"
+edition = "2024"
+
+# [features]
+# # Forwarded quiche features for re-exports
+# quiche_internal = ["quiche/internal"]
+
+# # Enable tokio tracing
+# tokio-tracing = ["tokio/tracing"]
+
+# # Enable SSLKEYLOGFILE capturing for QUIC connections.
+# capture_keylogs = []
+
+# # Enable qlog support.
+# qlog = ["quiche/qlog"]
+
+[dependencies]
+tokio-fcquiche = { path = "../multicast-quic/tokio-fcquiche", features=[ "qlog" ] }
+tokio-quiche = { path = "../multicast-quic/tokio-quiche" }
+env_logger = "0.11.8"
+log = "0.4.29"
+mio = { version = "1.1.1", features = ["os-poll", "net"] }
+quiche = { path = "../multicast-quic/quiche" }
+ring = "0.17.14"
+url = "2.5.7"
+tokio = { version = "1.49.0", features = ["full"] }
+clap = {version = "4.5.53", features = ["derive"] }
+bytes = "1.11.0"
+tokio-stream = "0.1"
+socket2 = "0.6.1"
+rand_distr = "0.5.1"
+rand = "0.9.2"
+rkyv = {version="0.8.12", features=["big_endian", "alloc", "bytecheck", "std"]}
+tokio-rustls = "0.26.4"
+webpki-roots = "1.0.4"
+netaddr2 = "0.10.0"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+# debug = true

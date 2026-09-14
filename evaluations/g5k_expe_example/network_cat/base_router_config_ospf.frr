@@ -1,0 +1,49 @@
+frr defaults traditional
+!
+ip forwarding
+!
+ip prefix-list multicast permit 224.0.0.0/4
+
+ip prefix-list ospf_out seq 5 deny 172.16.0.0 ge 16 le 22 
+ip prefix-list ospf_out seq 10 permit any
+
+!
+ip route 172.16.0.0/16 {{ gateway }} 1
+!
+interface lo
+    ip address {{ lo_address }}/32
+    ip igmp
+    ip pim
+    ip igmp immediate-leave
+!
+interface {{ prod_iface }}
+    ip address {{ prod_net_ip }}/24
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ip ospf passive
+!
+{% for tunnel in tunnels %}
+interface {{ tunnel.iface }}
+    ip address {{ tunnel.ip }}/30
+    ip pim
+    ip igmp
+    ip igmp immediate-leave
+    ip ospf network point-to-point
+    tunnel source {{ prod_iface }}
+!
+{% endfor %}
+router pim
+    ssm prefix-list multicast
+!
+router ospf
+    ospf router-id {{ router_id }}
+    network {{ prod_network }}/24 area 0
+{% for tunnel in tunnels %}
+    network {{ tunnel.network }}/30 area 0
+{% endfor %}
+    network {{ lo_address }}/32 area 0
+    area 0 export-list ospf_out
+!
+line vty
+!
