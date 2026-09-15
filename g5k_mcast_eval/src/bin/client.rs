@@ -1,11 +1,10 @@
 use clap::Parser;
 use g5k_mcast_eval::Message;
-use g5k_mcast_eval::client_logic::{alloc_additional_data, send_timestamp};
 use log::{debug, info};
 use netaddr2::{Contains, Netv4Addr};
 use quiche::flexicast::McConfig;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio_fcquiche::FcQuicMsg;
 use tokio_fcquiche::io::receiver::TokioFcQuicRecv;

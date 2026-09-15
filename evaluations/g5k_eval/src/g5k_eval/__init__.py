@@ -22,6 +22,7 @@ class G5KExpe:
         g5k_conf_file_loc: str = ".python-grid5000.yaml",
         job_type: str = "deploy",
         os_env_name: str = "debian12-nfs",
+        ansible_forks: int = 25
     ):
         """
         Creates an instance of G5KExpe
@@ -29,13 +30,22 @@ class G5KExpe:
         - `g5k_conf_file_loc`: path of the python-grid5000 file containing your G5K identifiers
         - `job_type`: defines the type of your job, likely should be "deploy"
         - `os_env_name`: name of the environment, see list here: https://www.grid5000.fr/w/Getting_Started#:~:text=On%20Grid%275000%20reference%20environments%5Bedit%5D
+        - `ansible_forks`: configure Ansible's "forks" parameter. Ansible's default value is 5 (i.e. it executes a task on the first 5 hosts, waits for completion, then executes on the next five hosts, ...). Here the default value is 25. 
+           Warning: don't set this value too high, as it can use a lot more resources
         """
         conf_file = os.path.join(os.environ.get("HOME"), g5k_conf_file_loc)  # type: ignore
         gk = Grid5000.from_yaml(conf_file)
 
         self.topology: Topology = load_topology(path=topology_conf)
 
-        en.set_config(ansible_forks=100)
+        # performance tuning: see https://discovery.gitlabpages.inria.fr/enoslib/tutorials/performance_tuning.html#performance-tuning ---------
+        en.set_config(ansible_forks=ansible_forks)
+        # Enable Ansible pipelining
+        os.environ["ANSIBLE_PIPELINING"] = "True"
+        os.environ["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+
+        # ---------------
+
         self.job_type = job_type
         self.env_name = os_env_name
 
@@ -191,7 +201,6 @@ class G5KExpe:
                 dest="/usr/share/keyrings/frrouting.gpg",
                 mode="0644",
             )
-            # TODO: check that the version is working properly
             a.apt_repository(
                 task_name="Add FRR apt repository",
                 repo="deb [signed-by=/usr/share/keyrings/frrouting.gpg] https://deb.frrouting.org/frr {{ ansible_distribution_release }} "
@@ -430,10 +439,6 @@ class G5KExpe:
         tunnel_base = int(ip_address("192.168.0.0"))
 
         for link_idx, (role_a, role_b) in enumerate(self.topology.links):
-            # print(f"link_idx: {link_idx}")
-            # print(f"role_a: {role_a}")
-            # print(f"role_b: {role_b}")
-            # print(f"roles: {self.roles}")
 
             host_a = self.roles[role_a][0]
             host_b = self.roles[role_b][0]
