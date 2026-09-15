@@ -88,8 +88,8 @@ struct Args {
     per_cluster_results: bool,
 }
 
-// #[tokio::main(flavor = "current_thread")]
-#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::main(flavor = "current_thread")]
+// #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     env_logger::builder().format_timestamp_nanos().init();
     let args = Args::parse();

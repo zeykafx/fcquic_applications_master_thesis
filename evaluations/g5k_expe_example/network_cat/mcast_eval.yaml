@@ -1,6 +1,6 @@
 topology:
   name: "g5k_mcast_eval"
-  wall_time: "2hr"
+  wall_time: "1hr"
   relay_nodes: false # whether to add one relay machine in each cluster
   netns_per_client: 5 # number of network namespaces to run on each client
   # see the possible frrouting version at https://deb.frrouting.org/
@@ -17,16 +17,17 @@ topology:
   sites:
     - name: nancy
       cluster: gros
-      num_clients: 5
+      num_clients: 1
     - name: rennes
       cluster: parasilo
-      num_clients: 5
+      num_clients: 1
     - name: nantes
-      cluster: ecotype
-      num_clients: 5
+      # cluster: ecotype
+      cluster: econome
+      num_clients: 1
     - name: lyon
       cluster: nova
-      num_clients: 5
+      num_clients: 1
 
   # links are established between routers in different clusters
   # GRE tunnels are established between the two routers, with OSPF running over it.

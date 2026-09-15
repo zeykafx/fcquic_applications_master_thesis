@@ -184,7 +184,8 @@ def run_eval(matrix, cfg, run_once, test_name, row_fields, metrics):
                 continue
 
             if not results.get(primary.key):
-                print(f"no {primary.key} results, retrying")
+                print(f"no {primary.key} results, retrying with double the test length")
+                rc.test_length *= 2
                 continue
 
             n_samples = {m.key: len(results.get(m.key, [])) for m in metrics}

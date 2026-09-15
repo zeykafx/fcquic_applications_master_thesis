@@ -3,7 +3,6 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use bytes::Bytes;
 use log::{debug, error, info};
 
 use rand::Rng;
@@ -24,7 +23,11 @@ pub fn alloc_additional_data(
             // alloc the buffer, fill it with random bytes, then put an arc on it and return that
             let mut data_vec = vec![0u8; additional_packet_data_size];
             rand::rng().fill(data_vec.as_mut_slice());
-            info!("Random data in buffer: {data_vec:?}");
+            info!(
+                "Allocated random data in buffer, size: {}",
+                additional_packet_data_size
+            );
+            // info!("Random data in buffer: {data_vec:?}");
             Arc::new(data_vec)
         }
         false => Arc::new(Vec::new()),
@@ -41,7 +44,7 @@ pub fn handle_sender_timeout(
     poisson: bool,
     send_sleep: &mut Duration,
     interval: u64,
-    sent_first_ts: &mut bool,
+    _sent_first_ts: &mut bool,
     additional_data: Arc<Vec<u8>>,
 ) -> FcQuicMsg {
     debug!("Sending timestamp to server at {:?}", Instant::now());

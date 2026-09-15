@@ -119,8 +119,8 @@ struct Args {
     additional_packet_data_size: usize,
 }
 
-// #[tokio::main(flavor = "multi_thread", worker_threads = 8)]
-#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::main(flavor = "multi_thread", worker_threads = 8)]
+// #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     env_logger::builder().format_timestamp_nanos().init();
     let args = Args::parse();
@@ -189,8 +189,8 @@ async fn main() {
             alloc_additional_data(true, true, args.additional_packet_data_size);
 
         // the test_start_ts argument is an EPOCH timestamp of when the test should start, this is typically 5 seconds in the future
-        // NOTE: the server adds 5 seconds
-        let test_start = UNIX_EPOCH + Duration::from_secs_f64(args.test_start_ts + 5.0);
+        // NOTE: the server adds 1 seconds
+        let test_start = UNIX_EPOCH + Duration::from_secs_f64(args.test_start_ts + 1.0);
         let now = SystemTime::now();
 
         let send_sleep = test_start
@@ -199,6 +199,7 @@ async fn main() {
         let send_sleep_instant = tokio::time::Instant::now() + send_sleep;
         let send_timer = tokio::time::sleep_until(send_sleep_instant);
         tokio::pin!(send_timer);
+        let mut sent_msg: bool = false;
 
         let test_deadline =
             tokio::time::Instant::now() + tokio::time::Duration::from_secs(args.length);
@@ -237,16 +238,16 @@ async fn main() {
                         }
                     }
                 },
-                () = &mut send_timer => {
+                () = &mut send_timer, if !sent_msg => {
 
-                    debug!("Sending msg to all clients at {:?}", Instant::now());
+                    info!("Sending msg to all clients at {:?}", Instant::now());
 
                     let start = SystemTime::now();
                     let since_epoch = start
                         .duration_since(UNIX_EPOCH)
                         .expect("time should go forward");
 
-                    debug!("Sending timestamp to server");
+                    debug!("Sending timestamp to clients");
 
                     let ts_str = since_epoch.as_micros().to_string();
 
@@ -261,6 +262,8 @@ async fn main() {
                             log::error!("Failed to send message to flexicast flow: {:?}", e);
                             return;
                         }
+                        info!("Sent msg to all clients on the MC Flow");
+                        sent_msg = true;
 
                     } else {
                         error!("Failed to encode timestamp message!");
@@ -330,6 +333,7 @@ fn get_config(args: &Args) -> quiche::Config {
         Some(v) => v,
         None => 100_000_000_000,
     };
+
     config.set_initial_max_data(initial_max_data);
     config.set_initial_max_stream_data_bidi_local(initial_max_data);
     config.set_initial_max_stream_data_bidi_remote(initial_max_data);

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import islice
+import logging
 from typing import Sequence
 import os
 from pathlib import Path
@@ -87,6 +88,8 @@ class G5KExpe:
         # Enable rich logging
         _ = en.init_logging()
 
+        logging.getLogger("paramiko").setLevel(logging.WARNING)
+
         server_cluster = self.cluster_to_site[self.topology.server.cluster]
 
         conf = (
@@ -147,7 +150,7 @@ class G5KExpe:
                     site=self.cluster_to_site[client_cluster["cluster"]],
                 )
             )
-            if self.topology.relay_nodes:
+            if self.topology.relay_nodes is True:
                 # if relays are used, then add one relay machine per client cluster
                 conf = conf.add_machine(
                     roles=["relay", f"relay_{i}"],
@@ -216,6 +219,9 @@ class G5KExpe:
             )
             results = a.results
             print(f"Results : {results}")
+
+    def sync_info(self):
+        self.roles = en.sync_info(self.roles, self.networks)
 
     def setup_interfaces(self):
 
