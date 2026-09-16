@@ -9,6 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from matplotlib.lines import Line2D
 
 from style import COLORS, LINESTYLES, LINEWIDTH, latexify
 
@@ -17,6 +18,13 @@ from style import COLORS, LINESTYLES, LINEWIDTH, latexify
 RESULT_RE = re.compile(r"^RESULT-LATENCY(?:-(\S+))?\s+([0-9.]+)\s*$")
 # run directories are named "sz<additional_data_size>_r<run_index>"
 RUN_DIR_RE = re.compile(r"^sz(\d+)_r\d+$")
+
+
+def file_path(path):
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
 
 
 def dir_path(path):
@@ -64,11 +72,7 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     sns.set_style("whitegrid")
     width = 7
     height = 4
-    # latexify must run before the figure is created: matplotlib resolves
-    # "text.usetex" when each Text object is created, so texts created together
-    # with the axes (labels, ticks) of a figure made before this call would keep
-    # rendering without LaTeX fonts (this used to break the first figure of each
-    # run, since only the previous latexify call left usetex=True in rcParams)
+
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
     fig, ax = plt.subplots(figsize=(width, height))
 
@@ -110,43 +114,216 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     print(f"wrote {out_path}/cdf_{name}{data_size_str}.svg")
 
 
-def main(raw_path, out_path, name, data_size=None, no_title=False):
-    data_df = parse_raw_logs(Path(raw_path))
-    if data_df.empty:
-        print(f"no RESULT-LATENCY lines found under {raw_path}, nothing to plot")
-        return
+def normalize_rct(dl_comp_df, by="msg_size"):
+    medians = dl_comp_df.groupby(by)["duration"].transform("median")
+    return dl_comp_df["duration"].div(medians)
 
-    # from microseconds to milliseconds
-    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
 
-    if data_size is not None:
-        if not (data_df["additional_data_size"] == data_size).any():
-            print(f"no samples for additional data size {data_size}, nothing to plot")
-            return
-        data_sizes = [data_size]
-    else:
-        data_sizes = sorted(
-            int(s) for s in data_df["additional_data_size"].dropna().unique()
-        )
-        if not data_sizes:
-            # the run directories weren't named "sz<size>_r<i>", don't split per size
-            data_sizes = [None]
+def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
+    dl_comp_df = pd.read_csv(dl_completion_path)
+    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
 
-    for size in data_sizes:
-        if size is None:
-            size_df = data_df
-        else:
-            size_df = data_df[data_df["additional_data_size"] == size]
+    if normalize:
+        # RCT relative to the median RCT for the same message size
+        dl_comp_df["duration"] = normalize_rct(dl_comp_df)
 
-        print(f"additional data size {size}: {len(size_df)} samples")
-        for cluster in sorted(size_df["cluster"].unique()):
-            cluster_values = size_df[size_df["cluster"] == cluster]["y_LATENCY"]
-            print(
-                f"  {cluster}: {len(cluster_values)} samples, "
-                f"median {cluster_values.median():.2f} ms"
-            )
+    sns.set_style("whitegrid")
+    width = 7
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
 
-        plot_cluster_cdfs(size_df, out_path, name, size, no_title)
+    msg_sizes = sorted(dl_comp_df["msg_size"].unique())
+    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+
+    g = sns.catplot(
+        data=dl_comp_df,
+        kind="bar",
+        x="run_index",
+        y="duration",
+        hue="msg_size",
+        hue_order=msg_sizes,
+        palette=palette,
+        legend=False,
+        # log_scale=True,
+        height=height,
+        aspect=width / height,
+    )
+
+    # show a dot with the color in the legend
+    legend_data = {
+        str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+        for i, size in enumerate(msg_sizes)
+    }
+    g.add_legend(
+        legend_data=legend_data,
+        title="Message size",
+        label_order=[str(size) for size in msg_sizes],
+    )
+
+    g.set_xlabels("Run number")
+    g.set_ylabels("RCT / median RCT" if normalize else "RCT")
+    ax.grid(True, alpha=0.3)
+    g.savefig(
+        f"{out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg")
+
+
+def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
+    dl_comp_df = pd.read_csv(dl_completion_path)
+    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    if normalize:
+        # RCT relative to the median RCT for the same message size
+        dl_comp_df["duration"] = normalize_rct(dl_comp_df)
+
+    sns.set_style("whitegrid")
+    width = 5
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    clusters = sorted(dl_comp_df["cluster"].unique())
+    palette = [COLORS[i % len(COLORS)] for i in range(len(clusters))]
+
+    g = sns.catplot(
+        data=dl_comp_df,
+        kind="bar",
+        x="cluster",
+        y="duration",
+        hue="cluster",
+        hue_order=clusters,
+        palette=palette,
+        legend=False,
+        # log_scale=True,
+        height=height,
+        aspect=width / height,
+    )
+
+    # show a dot with the color in the legend
+    legend_data = {
+        str(cluster): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+        for i, cluster in enumerate(clusters)
+    }
+    g.add_legend(
+        legend_data=legend_data,
+        title="Cluster",
+        label_order=[str(cluster) for cluster in clusters],
+    )
+
+    g.set_xlabels("Cluster")
+    g.set_ylabels("RCT / median RCT" if normalize else "RCT")
+    ax.grid(True, alpha=0.3)
+    g.savefig(
+        f"{out_path}/rct_vs_cluster{"_normalized" if normalize else ""}.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/rct_vs_cluster{"_normalized" if normalize else ""}.svg")
+
+
+def plot_loss_rate_vs_cluster(losses_path, out_path):
+    losses_df = pd.read_csv(losses_path)
+    # losses_df["loss_rate"] = losses_df["lost"].div(losses_df["total_msg_packets"])
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    msg_sizes = sorted(losses_df["msg_size"].unique())
+    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+
+    g = sns.catplot(
+        data=losses_df,
+        kind="violin",
+        x="cluster",
+        y="loss_rate",
+        hue="msg_size",
+        hue_order=msg_sizes,
+        palette=palette,
+        legend=False,
+        height=height,
+        aspect=width / height,
+    )
+
+    # show a dot with the color in the legend
+    legend_data = {
+        str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+        for i, size in enumerate(msg_sizes)
+    }
+    g.add_legend(
+        legend_data=legend_data,
+        title="Message size",
+        label_order=[str(size) for size in msg_sizes],
+    )
+
+    g.set_xlabels("Cluster")
+    g.set_ylabels("Loss rate")
+    ax.grid(True, alpha=0.3)
+    g.savefig(
+        f"{out_path}/losses_vs_cluster.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/losses_vs_cluster.svg")
+
+def main(
+    raw_path,
+    out_path,
+    name,
+    est_rtt_path,
+    dl_completion_path,
+    losses_path,
+    data_size=None,
+    no_title=False,
+):
+
+    plot_req_comp_time_vs_run(dl_completion_path, out_path, True)
+    plot_req_comp_time_vs_run(dl_completion_path, out_path, False)
+    plot_req_comp_time_vs_cluster(dl_completion_path, out_path, True)
+    plot_req_comp_time_vs_cluster(dl_completion_path, out_path, False)
+    plot_loss_rate_vs_cluster(losses_path, out_path)
+
+    # data_df = parse_raw_logs(Path(raw_path))
+    # if data_df.empty:
+    #     print(f"no RESULT-LATENCY lines found under {raw_path}, nothing to plot")
+    #     return
+
+    # # from microseconds to milliseconds
+    # data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+
+    # if data_size is not None:
+    #     if not (data_df["additional_data_size"] == data_size).any():
+    #         print(f"no samples for additional data size {data_size}, nothing to plot")
+    #         return
+    #     data_sizes = [data_size]
+    # else:
+    #     data_sizes = sorted(
+    #         int(s) for s in data_df["additional_data_size"].dropna().unique()
+    #     )
+    #     if not data_sizes:
+    #         # the run directories weren't named "sz<size>_r<i>", don't split per size
+    #         data_sizes = [None]
+
+    # for size in data_sizes:
+    #     if size is None:
+    #         size_df = data_df
+    #     else:
+    #         size_df = data_df[data_df["additional_data_size"] == size]
+
+    #     print(f"additional data size {size}: {len(size_df)} samples")
+    #     for cluster in sorted(size_df["cluster"].unique()):
+    #         cluster_values = size_df[size_df["cluster"] == cluster]["y_LATENCY"]
+    #         print(
+    #             f"  {cluster}: {len(cluster_values)} samples, "
+    #             f"median {cluster_values.median():.2f} ms"
+    #         )
+
+    #     plot_cluster_cdfs(size_df, out_path, name, size, no_title)
 
 
 if __name__ == "__main__":
@@ -166,6 +343,9 @@ if __name__ == "__main__":
         type=str,
         help="test name, used in the output file names",
     )
+    parser.add_argument("est_rtt_path", type=file_path)
+    parser.add_argument("dl_completion_path", type=file_path)
+    parser.add_argument("losses_path", type=file_path)
 
     parser.add_argument(
         "--data-size",
@@ -185,6 +365,9 @@ if __name__ == "__main__":
         args.raw_path,
         args.out_path,
         args.name,
+        args.est_rtt_path,
+        args.dl_completion_path,
+        args.losses_path,
         args.data_size,
         args.no_title,
     )

@@ -23,7 +23,7 @@ class G5KExpe:
         g5k_conf_file_loc: str = ".python-grid5000.yaml",
         job_type: str = "deploy",
         os_env_name: str = "debian12-nfs",
-        ansible_forks: int = 25
+        ansible_forks: int = 25,
     ):
         """
         Creates an instance of G5KExpe
@@ -31,7 +31,7 @@ class G5KExpe:
         - `g5k_conf_file_loc`: path of the python-grid5000 file containing your G5K identifiers
         - `job_type`: defines the type of your job, likely should be "deploy"
         - `os_env_name`: name of the environment, see list here: https://www.grid5000.fr/w/Getting_Started#:~:text=On%20Grid%275000%20reference%20environments%5Bedit%5D
-        - `ansible_forks`: configure Ansible's "forks" parameter. Ansible's default value is 5 (i.e. it executes a task on the first 5 hosts, waits for completion, then executes on the next five hosts, ...). Here the default value is 25. 
+        - `ansible_forks`: configure Ansible's "forks" parameter. Ansible's default value is 5 (i.e. it executes a task on the first 5 hosts, waits for completion, then executes on the next five hosts, ...). Here the default value is 25.
            Warning: don't set this value too high, as it can use a lot more resources
         """
         conf_file = os.path.join(os.environ.get("HOME"), g5k_conf_file_loc)  # type: ignore

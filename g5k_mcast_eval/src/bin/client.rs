@@ -144,18 +144,6 @@ async fn main() {
     tokio::spawn(async move {
         debug!("Starting main loop");
 
-        // if the client is a sender and if the additional packet data size is not 0, then allocate a buffer and fill it with random data
-        // let additional_packet_data =
-        //     alloc_additional_data(args.sender, true, args.additional_packet_data_size);
-
-        // // sleep for a few seconds to let the connection go through
-        // tokio::time::sleep(tokio::time::Duration::from_secs(
-        //     1,
-        // ))
-        // .await;
-
-        // let mut outgoing_stream_id = 2;
-
         // the test_start_ts argument is an EPOCH timestamp of when the test should start, this is typically 5 seconds in the future
         let test_start = UNIX_EPOCH + Duration::from_secs_f64(args.test_start_ts);
         let now = SystemTime::now();
@@ -223,28 +211,26 @@ async fn main() {
 
                                     let latency = now.saturating_sub(received_timestamp);
 
-                                    // TODO: add more metrics here!
-                                    if decoded.get_sender() != username  {
-                                        match args.per_cluster_results {
-                                            true => {
+                                    // if decoded.get_sender() != username  {
+                                    match args.per_cluster_results {
+                                        true => {
+                                            println!(
+                                                "RESULT-LATENCY-{} {}",
+                                                match cluster_name_local.as_ref() {
+                                                    Some(name) => name.as_str(),
+                                                    None => username_local.as_str(),
+                                                },
+                                                latency,
+                                            );
+                                        },
+                                        false => {
+                                            println!(
+                                                "RESULT-LATENCY {}",
+                                                latency,
+                                            );
 
-                                                println!(
-                                                    "RESULT-LATENCY-{} {}",
-                                                    match cluster_name_local.as_ref() {
-                                                        Some(name) => name.as_str(),
-                                                        None => username_local.as_str(),
-                                                    },
-                                                    latency,
-                                                );
-                                            },
-                                            false => {
-                                                println!(
-                                                    "RESULT-LATENCY {}",
-                                                    latency,
-                                                );
-
-                                            }
-                                        };
+                                        }
+                                        // };
                                     }
 
                                 } else {
@@ -347,7 +333,8 @@ fn get_config(args: &Args) -> quiche::Config {
     if args.flexicast {
         config.set_initial_max_path_id(10);
         config.set_enable_flexicast(args.flexicast);
-        config.set_recv_fec(true);
+        config.set_recv_fec(false);
+        config.set_send_fec(false);
     }
 
     config

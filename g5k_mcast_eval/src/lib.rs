@@ -10,7 +10,7 @@ pub mod client_logic;
 pub struct Message {
     content: String,
     additional_data: Arc<Vec<u8>>,
-    sender: String,
+    // sender: String,
 }
 
 impl Message {
@@ -18,7 +18,7 @@ impl Message {
         Message {
             content,
             additional_data,
-            sender,
+            // sender,
         }
     }
 
@@ -49,9 +49,9 @@ impl Message {
         self.content.clone()
     }
 
-    pub fn get_sender(&self) -> String {
-        self.sender.clone()
-    }
+    // pub fn get_sender(&self) -> String {
+    //     self.sender.clone()
+    // }
 }
 
 pub async fn optional_timeout(timeout: Option<std::time::Duration>) -> Option<()> {

@@ -1,0 +1,26 @@
+{
+    "time": 5072.8867,
+    "name": "transport:packet_received",
+    "data": {
+        "header": {
+            "packet_type": "1RTT",
+            "packet_number": 3
+        },
+        "raw": {
+            "length": 1284,
+            "payload_length": 1267
+        },
+        "frames": [
+            {
+                "frame_type": "unknown",
+                "raw_frame_type": 246
+            },
+            {
+                "frame_type": "stream",
+                "stream_id": 3,
+                "offset": 1235,
+                "length": 1234
+            }
+        ]
+    }
+}
