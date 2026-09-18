@@ -34,8 +34,14 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
 
 
+def format_size(n_bytes):
+    for unit, factor in (("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
+        if n_bytes >= factor:
+            return f"{n_bytes / factor:g}{unit}"
+    return f"{n_bytes}B"
+
+
 def parse_raw_logs(raw_root):
-    """Extract the (cluster, additional data size, latency) of each RESULT line."""
     records = []
 
     for log_file in sorted(raw_root.rglob("client_*.stdout")):
@@ -55,7 +61,7 @@ def parse_raw_logs(raw_root):
 
             records.append(
                 {
-                    "cluster": m.group(1) or "all",
+                    "cluster": (m.group(1) or "all").capitalize(),
                     "additional_data_size": additional_data_size,
                     "y_LATENCY": float(m.group(2)),
                 }
@@ -70,6 +76,7 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     clusters = sorted(data_df["cluster"].unique())
 
     sns.set_style("whitegrid")
+
     width = 7
     height = 4
 
@@ -114,6 +121,69 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     print(f"wrote {out_path}/cdf_{name}{data_size_str}.svg")
 
 
+def plot_combined_cdfs(
+    data_df, out_path, name, sizes=(10_000, 10_000_000), no_title=False
+):
+
+    sizes = [size for size in sizes if (data_df["additional_data_size"] == size).any()]
+    clusters = sorted(data_df["cluster"].unique())
+    size_labels = {size: format_size(size) for size in sizes}
+    # data_df["additional_data_size"] = data_df["additional_data_size"].map(size_labels)
+
+    sns.set_style("whitegrid")
+    width = 4
+    height = 2.5
+
+    latexify(nb_subplots_line=len(sizes), fig_height=height, fig_width=width)
+    fig, axs = plt.subplots(
+        1, len(sizes), figsize=(width * len(sizes), height), sharey=True, squeeze=False
+    )
+    axs = axs[0]
+
+    for ax, size in zip(axs, sizes):
+        size_df = data_df[data_df["additional_data_size"] == size]
+
+        for i, cluster in enumerate(clusters):
+            ax.ecdf(
+                size_df[size_df["cluster"] == cluster]["y_LATENCY"],
+                label=cluster,
+                color=COLORS[i % len(COLORS)],
+                linestyle=LINESTYLES[i % len(LINESTYLES)],
+                lw=LINEWIDTH,
+            )
+
+            ax.set_xlabel(f"Latency (ms). Size: {size_labels[size]}")
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+
+    axs[0].set_ylabel("CDF")
+
+    handles = {}
+    for ax in axs:
+        for handle, label in zip(*ax.get_legend_handles_labels()):
+            handles[label] = handle
+    legend_labels = [cluster for cluster in clusters if cluster in handles]
+
+    fig.legend(
+        [handles[label] for label in legend_labels],
+        legend_labels,
+        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        loc="upper center",
+        ncols=min(len(legend_labels), 4),
+        # mode="expand",
+        borderaxespad=0.0,
+    )
+    fig.tight_layout()
+
+    sizes_str = "_".join(format_size(size) for size in sizes)
+    fig.savefig(
+        f"{out_path}/cdf_{name}_{sizes_str}.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/cdf_{name}_{sizes_str}.svg")
+
+
 def normalize_rct(dl_comp_df, by="msg_size"):
     medians = dl_comp_df.groupby(by)["duration"].transform("median")
     return dl_comp_df["duration"].div(medians)
@@ -130,41 +200,28 @@ def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
     sns.set_style("whitegrid")
     width = 7
     height = 4
-    fig, ax = plt.subplots(figsize=(width, height))
     latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+    fig, ax = plt.subplots(figsize=(width, height))
 
     msg_sizes = sorted(dl_comp_df["msg_size"].unique())
     palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
 
-    g = sns.catplot(
+    g = sns.barplot(
+        ax=ax,
         data=dl_comp_df,
-        kind="bar",
         x="run_index",
         y="duration",
         hue="msg_size",
         hue_order=msg_sizes,
         palette=palette,
-        legend=False,
-        # log_scale=True,
-        height=height,
-        aspect=width / height,
     )
+    sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
 
-    # show a dot with the color in the legend
-    legend_data = {
-        str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
-        for i, size in enumerate(msg_sizes)
-    }
-    g.add_legend(
-        legend_data=legend_data,
-        title="Message size",
-        label_order=[str(size) for size in msg_sizes],
-    )
-
-    g.set_xlabels("Run number")
-    g.set_ylabels("RCT / median RCT" if normalize else "RCT")
     ax.grid(True, alpha=0.3)
-    g.savefig(
+    # ax.set_yscale("log")
+    ax.set_xlabel("Run number")
+    ax.set_ylabel("RCT / median RCT (ms)" if normalize else "RCT (ms)")
+    plt.savefig(
         f"{out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg",
         bbox_inches="tight",
     )
@@ -172,8 +229,98 @@ def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
     print(f"wrote {out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg")
 
 
+def plot_req_comp_time_variance_across_runs(dl_completion_path, out_path):
+    dl_comp_df = pd.read_csv(dl_completion_path)
+    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+
+    run_means_df = dl_comp_df.groupby(["msg_size", "run_index"], as_index=False).agg(
+        run_rct=("duration", "mean")
+    )
+    var_df = run_means_df.groupby("msg_size", as_index=False).agg(
+        rct_variance=("run_rct", "var")
+    )
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 4
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    msg_sizes = sorted(var_df["msg_size"].unique())
+    size_labels = {size: format_size(size) for size in msg_sizes}
+    var_df["msg_size"] = var_df["msg_size"].map(size_labels)
+    order = [size_labels[size] for size in msg_sizes]
+    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+
+    g = sns.barplot(
+        ax=ax,
+        data=var_df,
+        x="msg_size",
+        order=order,
+        y="rct_variance",
+        hue="msg_size",
+        hue_order=order,
+        palette=palette,
+        errorbar=None,
+        legend=False,
+    )
+
+    ax.grid(True, alpha=0.3)
+    ax.set_yscale("log")
+    ax.set_xlabel("Message size")
+    ax.set_ylabel("RCT variance across runs (ms$^2$)")
+    plt.savefig(
+        f"{out_path}/rct_variance_across_runs.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/rct_variance_across_runs.svg")
+
+
+def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path):
+    dl_comp_df = pd.read_csv(dl_completion_path)
+    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+
+
+    sns.set_style("whitegrid")
+    width = 6
+    height = 2
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+    fig, ax = plt.subplots(figsize=(width, height))
+
+    msg_sizes = sorted(dl_comp_df["msg_size"].unique())
+    size_labels = {size: format_size(size) for size in msg_sizes}
+    dl_comp_df["msg_size"] = dl_comp_df["msg_size"].map(size_labels)
+    order = [size_labels[size] for size in msg_sizes]
+    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+
+    g = sns.boxplot(
+        ax=ax,
+        data=dl_comp_df,
+        x="msg_size",
+        order=order,
+        y="duration",
+        hue="msg_size",
+        hue_order=order,
+        palette=palette,
+        legend=False,
+    )
+
+    ax.grid(True, alpha=0.4)
+    # ax.set_yscale("log")
+    ax.set_xlabel("Message size")
+    ax.set_ylabel("RCT (ms)")
+    plt.savefig(
+        f"{out_path}/rct_boxplot.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/rct_boxplot.svg")
+
+
 def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
+    dl_comp_df["cluster"] = dl_comp_df["cluster"].str.capitalize()
     dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
     if normalize:
         # RCT relative to the median RCT for the same message size
@@ -214,7 +361,7 @@ def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
     )
 
     g.set_xlabels("Cluster")
-    g.set_ylabels("RCT / median RCT" if normalize else "RCT")
+    g.set_ylabels("RCT / median RCT (ms)" if normalize else "RCT (ms)")
     ax.grid(True, alpha=0.3)
     g.savefig(
         f"{out_path}/rct_vs_cluster{"_normalized" if normalize else ""}.svg",
@@ -225,6 +372,58 @@ def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
 
 
 def plot_loss_rate_vs_cluster(losses_path, out_path):
+    losses_df = pd.read_csv(losses_path)
+    losses_df["cluster"] = losses_df["cluster"].str.capitalize()
+    # losses_df["loss_rate"] = losses_df["lost"].div(losses_df["total_msg_packets"])
+    losses_df["loss_rate"] = losses_df["loss_rate"].mul(100)
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    msg_sizes = sorted(losses_df["msg_size"].unique())
+    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+
+    g = sns.barplot(
+        ax=ax,
+        data=losses_df,
+        # kind="violin",
+        x="cluster",
+        y="loss_rate",
+        hue="msg_size",
+        hue_order=msg_sizes,
+        palette=palette,
+        # legend=False,
+        # height=height,
+        # aspect=width / height,
+    )
+
+    # show a dot with the color in the legend
+    # legend_data = {
+    #     str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+    #     for i, size in enumerate(msg_sizes)
+    # }
+    # g.add_legend(
+    #     legend_data=legend_data,
+    #     title="Message size",
+    #     label_order=[str(size) for size in msg_sizes],
+    # )
+
+    sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+    ax.set_xlabel("Cluster")
+    ax.set_ylabel("Loss rate (percentage of packets received)")
+    ax.grid(True, alpha=0.3)
+    plt.savefig(
+        f"{out_path}/losses_vs_cluster.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/losses_vs_cluster.svg")
+
+
+def plot_loss_rate_vs_run(losses_path, out_path):
     losses_df = pd.read_csv(losses_path)
     # losses_df["loss_rate"] = losses_df["lost"].div(losses_df["total_msg_packets"])
 
@@ -240,7 +439,7 @@ def plot_loss_rate_vs_cluster(losses_path, out_path):
     g = sns.catplot(
         data=losses_df,
         kind="violin",
-        x="cluster",
+        x="run_index",
         y="loss_rate",
         hue="msg_size",
         hue_order=msg_sizes,
@@ -261,15 +460,125 @@ def plot_loss_rate_vs_cluster(losses_path, out_path):
         label_order=[str(size) for size in msg_sizes],
     )
 
-    g.set_xlabels("Cluster")
+    g.set_xlabels("Run number")
     g.set_ylabels("Loss rate")
     ax.grid(True, alpha=0.3)
     g.savefig(
-        f"{out_path}/losses_vs_cluster.svg",
+        f"{out_path}/losses_vs_run.svg",
         bbox_inches="tight",
     )
     plt.close()
-    print(f"wrote {out_path}/losses_vs_cluster.svg")
+    print(f"wrote {out_path}/losses_vs_run.svg")
+
+
+def plot_lat_vs_size(data_df, out_path):
+    sns.set_style("whitegrid")
+    width = 6
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    clusters = sorted(data_df["cluster"].unique())
+    palette = [COLORS[i % len(COLORS)] for i in range(len(clusters))]
+
+    sns.barplot(
+        ax=ax,
+        data=data_df,
+        # kind="bar",
+        x="additional_data_size",
+        y="y_LATENCY",
+        hue="cluster",
+        hue_order=clusters,
+        palette=palette,
+        # legend=False,
+        # log_scale=True,
+        # log=True,
+        # height=height,
+        # aspect=width / height,
+    )
+    ax.set_yscale("log")
+
+    # show a dot with the color in the legend
+    # legend_data = {
+    #     str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+    #     for i, size in enumerate(clusters)
+    # }
+    # g.legend(
+    #     legend_data=legend_data,
+    #     title="Clusters",
+    #     label_order=[str(size) for size in clusters],
+    # )
+    sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+    ax.set_xlabel("Message size (bytes)")
+    ax.set_ylabel("Latency (ms)")
+    ax.grid(True, alpha=0.3)
+    plt.savefig(
+        f"{out_path}/lat_vs_size.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/lat_vs_size.svg")
+
+
+def plot_est_rtt_vs_size_cluster(est_rtt_path, out_path):
+    est_rtt_df = pd.read_csv(est_rtt_path)
+    est_rtt_df["cluster"] = est_rtt_df["cluster"].str.capitalize()
+
+    sns.set_style("whitegrid")
+    width = 7
+    height = 4
+    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
+
+    clusters = (
+        est_rtt_df.groupby("cluster")["smoothed_rtt"]
+        .median()
+        .sort_values()
+        .index.tolist()
+    )
+    palette = [COLORS[i % len(COLORS)] for i in range(len(clusters))]
+
+    # show the message sizes with human readable units (10KB, 100KB, 1MB, ...)
+    sizes = sorted(est_rtt_df["msg_size"].unique())
+    size_labels = {size: format_size(size) for size in sizes}
+    est_rtt_df["msg_size"] = est_rtt_df["msg_size"].map(size_labels)
+
+    g = sns.catplot(
+        data=est_rtt_df,
+        kind="bar",
+        x="msg_size",
+        order=[size_labels[size] for size in sizes],
+        y="smoothed_rtt",
+        hue="cluster",
+        hue_order=clusters,
+        palette=palette,
+        legend=False,
+        # log_scale=True,
+        height=height,
+        aspect=width / height,
+    )
+
+    # show a dot with the color in the legend
+    legend_data = {
+        str(size): Line2D([], [], marker="o", linestyle="none", color=palette[i])
+        for i, size in enumerate(clusters)
+    }
+    g.add_legend(
+        legend_data=legend_data,
+        title="Clusters",
+        label_order=[str(size) for size in clusters],
+    )
+
+    g.set_xlabels("Message size")
+    g.set_ylabels("Estimated RTT (ms)")
+    ax.grid(True, alpha=0.3)
+    g.savefig(
+        f"{out_path}/est_rtt_vs_size_cluster.svg",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print(f"wrote {out_path}/est_rtt_vs_size_cluster.svg")
+
 
 def main(
     raw_path,
@@ -284,46 +593,58 @@ def main(
 
     plot_req_comp_time_vs_run(dl_completion_path, out_path, True)
     plot_req_comp_time_vs_run(dl_completion_path, out_path, False)
-    plot_req_comp_time_vs_cluster(dl_completion_path, out_path, True)
-    plot_req_comp_time_vs_cluster(dl_completion_path, out_path, False)
+    plot_req_comp_time_variance_across_runs(dl_completion_path, out_path)
+    # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, True)
+    # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, False)
+    plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path)
+
     plot_loss_rate_vs_cluster(losses_path, out_path)
+    # plot_loss_rate_vs_run(losses_path, out_path)
 
-    # data_df = parse_raw_logs(Path(raw_path))
-    # if data_df.empty:
-    #     print(f"no RESULT-LATENCY lines found under {raw_path}, nothing to plot")
-    #     return
+    plot_est_rtt_vs_size_cluster(est_rtt_path, out_path)
 
-    # # from microseconds to milliseconds
-    # data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+    data_df = parse_raw_logs(Path(raw_path))
+    if data_df.empty:
+        print(f"no RESULT-LATENCY lines found under {raw_path}, nothing to plot")
+        return
 
-    # if data_size is not None:
-    #     if not (data_df["additional_data_size"] == data_size).any():
-    #         print(f"no samples for additional data size {data_size}, nothing to plot")
-    #         return
-    #     data_sizes = [data_size]
-    # else:
-    #     data_sizes = sorted(
-    #         int(s) for s in data_df["additional_data_size"].dropna().unique()
-    #     )
-    #     if not data_sizes:
-    #         # the run directories weren't named "sz<size>_r<i>", don't split per size
-    #         data_sizes = [None]
+    # from microseconds to milliseconds
+    data_df["y_LATENCY"] = data_df["y_LATENCY"].div(1000)
+    data_df = data_df[data_df["y_LATENCY"] != 0]
 
-    # for size in data_sizes:
-    #     if size is None:
-    #         size_df = data_df
-    #     else:
-    #         size_df = data_df[data_df["additional_data_size"] == size]
+    if data_size is not None:
+        if not (data_df["additional_data_size"] == data_size).any():
+            print(f"no samples for additional data size {data_size}, nothing to plot")
+            return
+        data_sizes = [data_size]
+    else:
+        data_sizes = sorted(
+            int(s) for s in data_df["additional_data_size"].dropna().unique()
+        )
+        if not data_sizes:
+            # the run directories weren't named "sz<size>_r<i>", don't split per size
+            data_sizes = [None]
 
-    #     print(f"additional data size {size}: {len(size_df)} samples")
-    #     for cluster in sorted(size_df["cluster"].unique()):
-    #         cluster_values = size_df[size_df["cluster"] == cluster]["y_LATENCY"]
-    #         print(
-    #             f"  {cluster}: {len(cluster_values)} samples, "
-    #             f"median {cluster_values.median():.2f} ms"
-    #         )
+    for size in data_sizes:
+        if size is None:
+            size_df = data_df
+        else:
+            size_df = data_df[data_df["additional_data_size"] == size]
 
-    #     plot_cluster_cdfs(size_df, out_path, name, size, no_title)
+        print(f"additional data size {size}: {len(size_df)} samples")
+        for cluster in sorted(size_df["cluster"].unique()):
+            cluster_values = size_df[size_df["cluster"] == cluster]["y_LATENCY"]
+            print(
+                f"  {cluster}: {len(cluster_values)} samples, "
+                f"median {cluster_values.median():.2f} ms"
+            )
+
+        plot_cluster_cdfs(size_df, out_path, name, size, no_title)
+
+    # CDFs of the smallest and largest sizes (10KB and 10MB) side by side
+    plot_combined_cdfs(data_df, out_path, name, no_title=no_title)
+
+    plot_lat_vs_size(data_df, out_path)
 
 
 if __name__ == "__main__":

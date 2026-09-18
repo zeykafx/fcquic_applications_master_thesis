@@ -9,7 +9,6 @@ from fabric import Connection
 
 
 def _report(label, results, elapsed, *, quiet=False, verb="done"):
-    """Print one line summarizing an Ansible run (nothing if it succeeded and is quiet)."""
     total = len(results)
     failed = len(results.filter(status=en.STATUS_FAILED)) + len(
         results.filter(status=en.STATUS_UNREACHABLE)
@@ -24,7 +23,6 @@ def _report(label, results, elapsed, *, quiet=False, verb="done"):
 
 
 def _as_host(host, user):
-    """Return ``host`` as an EnOSlib Host that connects as ``user``."""
     if isinstance(host, str):
         return en.Host(address=host, user=user)
     if user is None or host.user == user:
@@ -40,7 +38,6 @@ def _as_host(host, user):
 
 
 def _host_with_vars(host, user, **variables):
-    """Copy of ``host`` with extra Ansible host variables (does not mutate it)."""
     host = _as_host(host, user)
     if not variables:
         return host

@@ -1,6 +1,6 @@
 topology:
   name: "g5k_mcast_eval"
-  wall_time: "2hr"
+  wall_time: "4hr"
   relay_nodes: false # whether to add one relay machine in each cluster
   netns_per_client: 5 # number of network namespaces to run on each client
   # see the possible frrouting version at https://deb.frrouting.org/
