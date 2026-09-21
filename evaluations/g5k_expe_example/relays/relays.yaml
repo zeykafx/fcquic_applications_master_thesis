@@ -11,22 +11,33 @@ topology:
     cluster: "chirop" # Lille
     nodes: 1
     # node: "chirop-5.lille.grid5000.fr"   # optional: pin a specific machine
+  
 
-  # each site has one router + num_clients clients and one relay,
+  additional_roles:
+    - name: "relay"
+      sites:
+        - name: nancy
+          cluster: gros
+          number: 1
+        - name: rennes
+          cluster: parasilo
+          number: 1
+
+  # each site has one router + number clients and one relay,
   # all reserved in the given cluster. 
   sites:
     - name: nancy
       cluster: gros
-      num_clients: 5
+      number: 5
     - name: rennes
       cluster: parasilo
-      num_clients: 5
+      number: 5
     - name: nantes
       cluster: ecotype
-      num_clients: 5
+      number: 5
     - name: lyon
       cluster: nova
-      num_clients: 5
+      number: 5
 
   # links are established between routers in different clusters
   # GRE tunnels are established between the two routers, with OSPF running over it.

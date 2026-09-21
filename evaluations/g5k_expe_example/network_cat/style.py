@@ -24,8 +24,8 @@ MARKERSIZE = 8
 HANDLETEXTPAD = 0.2
 HANDLELENGTH = 2.5
 FIG_HEIGHT = 3.5
-FONT_SIZE = 15
-LABEL_FONT_SIZE = FONT_SIZE + 5
+FONT_SIZE = 10
+LABEL_FONT_SIZE = 8
 CONFIDENCE_BAND_OPACITY = 0.2
 
 NO_RELAY_COLOR = COLORS[1]
@@ -65,7 +65,7 @@ def latexify(fig_width=None, fig_height=None, columns=2, nb_subplots_line=1):
 
     if fig_width is None:
         # Get this from LaTeX using \the\textwidth
-        fig_width_pt = 418.25368
+        fig_width_pt =506.295
         inches_per_pt = 1.0 / 72.27  # Convert pt to inch
         scale = 3.39 / 6.9 if columns == 1 else 1
         fig_width = fig_width_pt * inches_per_pt * scale  # width in inches
@@ -77,14 +77,14 @@ def latexify(fig_width=None, fig_height=None, columns=2, nb_subplots_line=1):
 
     fig_width *= nb_subplots_line
 
-    # MAX_HEIGHT_INCHES = 8.0
-    # if fig_height > MAX_HEIGHT_INCHES:
-    #     print(
-    #         "WARNING: fig_height too large {}: so will reduce to {} inches.".format(
-    #             fig_height, MAX_HEIGHT_INCHES
-    #         )
-    #     )
-    #     fig_height = MAX_HEIGHT_INCHES
+    MAX_HEIGHT_INCHES = 8.0
+    if fig_height > MAX_HEIGHT_INCHES:
+        print(
+            "WARNING: fig_height too large {}: so will reduce to {} inches.".format(
+                fig_height, MAX_HEIGHT_INCHES
+            )
+        )
+        fig_height = MAX_HEIGHT_INCHES
     params = {
         "backend": "ps",
         "text.latex.preamble": r"\usepackage[T1]{fontenc} \usepackage{gensymb}",

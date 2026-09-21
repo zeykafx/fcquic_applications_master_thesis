@@ -7,3 +7,6 @@
 [submodule "fcquic_relay"]
 	path = fcquic_relay
 	url = https://github.com/zeykafx/fcquic_relay.git
+[submodule "gem"]
+	path = evaluations/gem
+	url = https://github.com/zeykafx/gem.git

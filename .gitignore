@@ -25,5 +25,8 @@ fcquic_relay/logs/*
 evaluations/grid5000/relay_eval_gre/generated_frr_configs/*
 *.stdout
 *.sqlog
+*.tar.gz
 *.pyc
 .DS_Store
+
+evaluations/g5k_expe_example/network_cat/sqlogs/*

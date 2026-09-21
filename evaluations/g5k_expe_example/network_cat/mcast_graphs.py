@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.lines import Line2D
@@ -18,6 +19,15 @@ from style import COLORS, LINESTYLES, LINEWIDTH, latexify
 RESULT_RE = re.compile(r"^RESULT-LATENCY(?:-(\S+))?\s+([0-9.]+)\s*$")
 # run directories are named "sz<additional_data_size>_r<run_index>"
 RUN_DIR_RE = re.compile(r"^sz(\d+)_r\d+$")
+
+# quiche opens every connection with an initial congestion window of 10 packets
+# (DEFAULT_INITIAL_CONGESTION_WINDOW_PACKETS in multicast-quic/quiche/src/lib.rs), i.e.
+# initial_cwnd = 10 * max_datagram_size. The experiment's binaries use a 1350 byte UDP
+# payload (tokio_fcquiche::MAX_DATAGRAM_SIZE), so the initial window is 13500 bytes.
+# This matches the first "congestion_window" value logged in the sqlogs.
+MAX_DATAGRAM_SIZE = 1350
+INITIAL_WINDOW_PACKETS = 10
+INITIAL_WINDOW_BYTES = INITIAL_WINDOW_PACKETS * MAX_DATAGRAM_SIZE
 
 
 def file_path(path):
@@ -39,6 +49,28 @@ def format_size(n_bytes):
         if n_bytes >= factor:
             return f"{n_bytes / factor:g}{unit}"
     return f"{n_bytes}B"
+
+
+INITIAL_WINDOW_LABEL = (
+    f"initial window ({INITIAL_WINDOW_PACKETS}$\\times$MSS"
+    f" = {format_size(INITIAL_WINDOW_BYTES)})"
+)
+
+
+def split_traces(cwnd_df, id_cols):
+    """Tag each traced connection in the cwnd csv with a unique trace id.
+
+    The merge cell writes the rows one sqlog at a time, and the qlog clock of
+    each sqlog restarts near 0, so a negative time delta between two rows of
+    the same group means a new trace began. When the csv carries an id column
+    (run_index / client / client_ip), it is used to separate the traces.
+    """
+    cwnd_df = cwnd_df.copy()
+    keys = ["cluster", *id_cols]
+    delta = cwnd_df.groupby(keys, sort=False)["time"].diff()
+    new_trace = delta.isna() | delta.lt(0)
+    cwnd_df["trace"] = new_trace.astype(int).cumsum()
+    return cwnd_df
 
 
 def parse_raw_logs(raw_root):
@@ -77,11 +109,11 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
 
     sns.set_style("whitegrid")
 
-    width = 7
-    height = 4
+    # width = 7
+    # height = 4
 
-    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
-    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(nb_subplots_line=1, fig_height=2.2, columns=1)
+    fig, ax = plt.subplots()
 
     for i, cluster in enumerate(clusters):
         ax.ecdf(
@@ -105,7 +137,7 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     ax.legend(
         bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
         loc="lower left",
-        ncols=min(len(clusters), 4),
+        ncols=min(len(clusters), 2),
         mode="expand",
         borderaxespad=0.0,
     )
@@ -131,13 +163,11 @@ def plot_combined_cdfs(
     # data_df["additional_data_size"] = data_df["additional_data_size"].map(size_labels)
 
     sns.set_style("whitegrid")
-    width = 4
-    height = 2.5
+    # width = 4
+    # height = 2.5
 
-    latexify(nb_subplots_line=len(sizes), fig_height=height, fig_width=width)
-    fig, axs = plt.subplots(
-        1, len(sizes), figsize=(width * len(sizes), height), sharey=True, squeeze=False
-    )
+    latexify(nb_subplots_line=1, columns=2, fig_height=1.7)
+    fig, axs = plt.subplots(1, 2, sharey=True, squeeze=False)
     axs = axs[0]
 
     for ax, size in zip(axs, sizes):
@@ -167,11 +197,11 @@ def plot_combined_cdfs(
     fig.legend(
         [handles[label] for label in legend_labels],
         legend_labels,
-        bbox_to_anchor=(0.0, 1.02, 1.0, 0.102),
+        bbox_to_anchor=(0.0, 1.0, 1, 0.1),
         loc="upper center",
         ncols=min(len(legend_labels), 4),
         # mode="expand",
-        borderaxespad=0.0,
+        # borderaxespad=1.0,
     )
     fig.tight_layout()
 
@@ -191,7 +221,7 @@ def normalize_rct(dl_comp_df, by="msg_size"):
 
 def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
-    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    # dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
 
     if normalize:
         # RCT relative to the median RCT for the same message size
@@ -220,7 +250,7 @@ def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
     ax.grid(True, alpha=0.3)
     # ax.set_yscale("log")
     ax.set_xlabel("Run number")
-    ax.set_ylabel("RCT / median RCT (ms)" if normalize else "RCT (ms)")
+    ax.set_ylabel("Normalized RCT (ms)" if normalize else "RCT (ms)")
     plt.savefig(
         f"{out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg",
         bbox_inches="tight",
@@ -229,9 +259,12 @@ def plot_req_comp_time_vs_run(dl_completion_path, out_path, normalize):
     print(f"wrote {out_path}/rct_vs_runs{"_normalized" if normalize else ""}.svg")
 
 
-def plot_req_comp_time_variance_across_runs(dl_completion_path, out_path):
+def plot_req_comp_time_variance_across_runs(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
-    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    # dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    if normalize:
+        # RCT relative to the median RCT for the same message size
+        dl_comp_df["duration"] = normalize_rct(dl_comp_df)
 
     run_means_df = dl_comp_df.groupby(["msg_size", "run_index"], as_index=False).agg(
         run_rct=("duration", "mean")
@@ -266,62 +299,74 @@ def plot_req_comp_time_variance_across_runs(dl_completion_path, out_path):
     )
 
     ax.grid(True, alpha=0.3)
-    ax.set_yscale("log")
+    # ax.set_yscale("log")
     ax.set_xlabel("Message size")
-    ax.set_ylabel("RCT variance across runs (ms$^2$)")
+    ax.set_ylabel(f"{"Norm. " if normalize else ""}RCT variance across runs (ms$^2$)")
     plt.savefig(
-        f"{out_path}/rct_variance_across_runs.svg",
+        f"{out_path}/{"norm_" if normalize else ""}rct_variance_across_runs.svg",
         bbox_inches="tight",
     )
     plt.close()
-    print(f"wrote {out_path}/rct_variance_across_runs.svg")
+    print(
+        f"wrote {out_path}/{"norm_" if normalize else ""}rct_variance_across_runs.svg"
+    )
 
 
-def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path):
+def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
-    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    # dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
 
+    if normalize:
+        # RCT relative to the median RCT for the same message size
+        dl_comp_df["duration"] = normalize_rct(dl_comp_df)
 
     sns.set_style("whitegrid")
-    width = 6
+    width = 5
     height = 2
-    latexify(nb_subplots_line=1, fig_height=height, fig_width=width)
-    fig, ax = plt.subplots(figsize=(width, height))
+    latexify(
+        nb_subplots_line=1,
+        columns=1,
+        fig_height=1,
+    )
+    fig, ax = plt.subplots()
 
     msg_sizes = sorted(dl_comp_df["msg_size"].unique())
     size_labels = {size: format_size(size) for size in msg_sizes}
     dl_comp_df["msg_size"] = dl_comp_df["msg_size"].map(size_labels)
     order = [size_labels[size] for size in msg_sizes]
-    palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+    # palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
+    palette = sns.color_palette("colorblind")
 
-    g = sns.boxplot(
+    g = sns.lineplot(
         ax=ax,
         data=dl_comp_df,
         x="msg_size",
-        order=order,
         y="duration",
-        hue="msg_size",
-        hue_order=order,
+        errorbar="sd",
+        # hue="msg_size",
+        # hue_order=order,
+        # order=order,
         palette=palette,
-        legend=False,
+        # err_style="bars"
+        # legend=False,
     )
 
     ax.grid(True, alpha=0.4)
     # ax.set_yscale("log")
-    ax.set_xlabel("Message size")
-    ax.set_ylabel("RCT (ms)")
+    ax.set_xlabel("File size")
+    ax.set_ylabel(f"{"Norm. " if normalize else ""}RCT (ms)")
     plt.savefig(
-        f"{out_path}/rct_boxplot.svg",
+        f"{out_path}/{"norm_" if normalize else ""}rct_boxplot.svg",
         bbox_inches="tight",
     )
     plt.close()
-    print(f"wrote {out_path}/rct_boxplot.svg")
+    print(f"wrote {out_path}/{"norm_" if normalize else ""}rct_boxplot.svg")
 
 
 def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
     dl_comp_df["cluster"] = dl_comp_df["cluster"].str.capitalize()
-    dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
+    # dl_comp_df["duration"] = dl_comp_df["duration"].div(1000)
     if normalize:
         # RCT relative to the median RCT for the same message size
         dl_comp_df["duration"] = normalize_rct(dl_comp_df)
@@ -375,7 +420,7 @@ def plot_loss_rate_vs_cluster(losses_path, out_path):
     losses_df = pd.read_csv(losses_path)
     losses_df["cluster"] = losses_df["cluster"].str.capitalize()
     # losses_df["loss_rate"] = losses_df["lost"].div(losses_df["total_msg_packets"])
-    losses_df["loss_rate"] = losses_df["loss_rate"].mul(100)
+    # losses_df["loss_rate"] = losses_df["loss_rate"].mul(100)
 
     sns.set_style("whitegrid")
     width = 7
@@ -580,6 +625,143 @@ def plot_est_rtt_vs_size_cluster(est_rtt_path, out_path):
     print(f"wrote {out_path}/est_rtt_vs_size_cluster.svg")
 
 
+# group retransmissions within 50ms of each other as one loss event
+LOSS_BURST_GAP_MS = 100.0
+
+
+def split_bursts(times, gap_ms=LOSS_BURST_GAP_MS):
+    if len(times) == 0:
+        return []
+    breaks = np.nonzero(np.diff(times) > gap_ms)[0] + 1
+    return np.split(times, breaks)
+
+
+def plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out_path):
+    cwnd_df = pd.read_csv(cwnd_path)
+    uc_retransmissions_path_df = pd.read_csv(uc_retransmissions_path)
+
+    rct_df = pd.read_csv(dl_completion_path)
+    rct_df["duration"] = rct_df["duration"].div(1000)
+
+    for size in sorted(cwnd_df["msg_size"].unique()):
+        size_df = cwnd_df[cwnd_df["msg_size"] == size]
+        retrans_df = uc_retransmissions_path_df[
+            uc_retransmissions_path_df["msg_size"] == size
+        ]
+        retrans_df = retrans_df[retrans_df["time"] <= 25000]
+        size_rct_df = rct_df[rct_df["msg_size"] == size]
+
+        sns.set_style("whitegrid")
+        latexify(
+            nb_subplots_line=1,
+            columns=1,
+            fig_height=1.5,
+        )
+        fig_width, fig_height = plt.rcParams["figure.figsize"]
+        fig, ax = plt.subplots()
+        # fig, (ax, ax_events) = plt.subplots(
+        #     2,
+        #     1,
+        #     sharex=True,
+        #     gridspec_kw=dict(height_ratios=[3, 1.4]),
+        #     figsize=(fig_width, fig_height * 1.6),
+        # )
+
+        run_means_df = size_rct_df.groupby(
+            ["msg_size", "run_index"], as_index=False
+        ).agg(run_rct=("duration", "mean"))
+        # rct_runs_ordered = run_means_df.groupby("msg_size")["run_rct"]
+
+        # fastest_run = run_means_df.loc[rct_runs_ordered.idxmin()]["run_index"]
+        # slowest_run = run_means_df.loc[rct_runs_ordered.idxmax()]["run_index"]
+        fastest_run = run_means_df.loc[run_means_df["run_rct"].idxmin(), "run_index"]
+        slowest_run = run_means_df.loc[run_means_df["run_rct"].idxmax(), "run_index"]
+        print(
+            f"Fastest req. comp. time run={fastest_run}, slowest rct run={slowest_run}"
+        )
+
+        # only keep the slowest and fastest run
+        size_df = size_df[size_df["run_index"].isin([fastest_run, slowest_run])]
+        # print(size_df)
+
+        runs = list(dict.fromkeys([fastest_run, slowest_run]))
+        palette = sns.color_palette("colorblind")
+        run_colors = {run: palette[i % len(palette)] for i, run in enumerate(runs)}
+
+        dash_patterns = ["", (4, 2)]  # "" == solid line
+        run_dashes = {
+            run: dash_patterns[i % len(dash_patterns)] for i, run in enumerate(runs)
+        }
+        run_linestyles = {run: (0, d) if d else "-" for run, d in run_dashes.items()}
+        run_labels = {fastest_run: "Fastest", slowest_run: "Slowest"}
+
+        g = sns.lineplot(
+            ax=ax,
+            data=size_df,
+            x="time",
+            y="cwnd",
+            hue="run_index",
+            hue_order=runs,
+            palette=run_colors,
+            style="run_index",
+            style_order=runs,
+            dashes=run_dashes,
+            lw=LINEWIDTH,
+            alpha=1,
+            legend=False,
+        )
+
+        for run in runs:
+            run_retrans = retrans_df[retrans_df["run_index"] == run].sort_values("time")
+            if run_retrans.empty:
+                continue
+            for burst in split_bursts(run_retrans["time"].to_numpy()):
+                ax.axvline(
+                    np.median(burst),
+                    lw=0.7,
+                    color=run_colors[run],
+                    zorder=5,
+                    alpha=0.9,
+                    linestyle=run_linestyles[run],
+                )
+
+        fig.legend(
+            handles=[
+                Line2D(
+                    [],
+                    [],
+                    color=run_colors[run],
+                    lw=LINEWIDTH,
+                    linestyle=run_linestyles[run],
+                )
+                for run in runs
+            ],
+            labels=[f"{run_labels[run]} ({run})" for run in runs],
+            loc="upper center",
+            ncols=2,
+            fontsize=9,
+            # mode="expand",
+            bbox_to_anchor=(0.1, 1.01, 1, 0.1),
+        )
+
+        # ax_events.set_yticks([])
+        # ax_events.set_ylim(len(runs) - 0.5, -0.5)  # run 0 on top
+        # ax_events.set_ylabel("Run")
+
+        ax.set_ylabel("Cwnd (bytes)")
+        ax.set_xlabel("Time (ms)")
+        ax.grid(True, alpha=0.3)
+        # ax_events.set_xlabel("Time (ms)")
+        # ax_events.grid(True, axis="x", alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(
+            f"{out_path}/cwnd_growth_{size}.svg",
+            bbox_inches="tight",
+        )
+        plt.close()
+        print(f"wrote {out_path}/cwnd_growth_{size}.svg ")
+
+
 def main(
     raw_path,
     out_path,
@@ -587,21 +769,28 @@ def main(
     est_rtt_path,
     dl_completion_path,
     losses_path,
+    cwnd_path,
+    uc_retransmissions_path,
     data_size=None,
     no_title=False,
 ):
 
-    plot_req_comp_time_vs_run(dl_completion_path, out_path, True)
+    # plot_req_comp_time_vs_run(dl_completion_path, out_path, True)
     plot_req_comp_time_vs_run(dl_completion_path, out_path, False)
-    plot_req_comp_time_variance_across_runs(dl_completion_path, out_path)
+
+    # plot_req_comp_time_variance_across_runs(dl_completion_path, out_path, True)
+    plot_req_comp_time_variance_across_runs(dl_completion_path, out_path, False)
     # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, True)
     # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, False)
-    plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path)
+
+    # plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, True)
+    plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, False)
 
     plot_loss_rate_vs_cluster(losses_path, out_path)
     # plot_loss_rate_vs_run(losses_path, out_path)
 
     plot_est_rtt_vs_size_cluster(est_rtt_path, out_path)
+    plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out_path)
 
     data_df = parse_raw_logs(Path(raw_path))
     if data_df.empty:
@@ -667,6 +856,8 @@ if __name__ == "__main__":
     parser.add_argument("est_rtt_path", type=file_path)
     parser.add_argument("dl_completion_path", type=file_path)
     parser.add_argument("losses_path", type=file_path)
+    parser.add_argument("cwnd_path", type=file_path)
+    parser.add_argument("uc_retransmissions", type=file_path)
 
     parser.add_argument(
         "--data-size",
@@ -689,6 +880,8 @@ if __name__ == "__main__":
         args.est_rtt_path,
         args.dl_completion_path,
         args.losses_path,
+        args.cwnd_path,
+        args.uc_retransmissions,
         args.data_size,
         args.no_title,
     )
