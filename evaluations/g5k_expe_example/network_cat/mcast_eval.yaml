@@ -1,6 +1,6 @@
 topology:
   name: "gem_g5k_net_eval"
-  wall_time: "1hr"
+  wall_time: "2hr"
   relay_nodes: false # whether to add one relay machine in each cluster
   netns_per_client: 15 # number of network namespaces to run on each client
   # see the possible frrouting version at https://deb.frrouting.org/

@@ -363,6 +363,57 @@ def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, normalize):
     print(f"wrote {out_path}/{"norm_" if normalize else ""}rct_boxplot.svg")
 
 
+def parse_cpu_range(cpus):
+    """Parse a taskset -c style range ("0-7", "0,2,4-6") into a list of cpu ids."""
+    ids = []
+    for part in cpus.split(","):
+        lo, _, hi = part.partition("-")
+        ids.extend(range(int(lo), int(hi or lo) + 1))
+    return ids
+
+
+def plot_cpu_usage_vs_size(cpu_path, out_path, server_cpus="0-7"):
+    cpu_df = pd.read_csv(cpu_path)
+    cpu_df = cpu_df[cpu_df["cpu_id"].isin(parse_cpu_range(server_cpus))]
+
+    # mean utilization of the server cores at each sample, then over each run
+    sample_df = cpu_df.groupby(
+        ["ADDITIONAL_DATA_SIZE", "run_index", "time_rel"], as_index=False
+    )["utilization_percentage"].mean()
+    run_df = sample_df.groupby(
+        ["ADDITIONAL_DATA_SIZE", "run_index"], as_index=False
+    )["utilization_percentage"].mean()
+
+    sns.set_style("whitegrid")
+    latexify(
+        nb_subplots_line=1,
+        columns=1,
+        fig_height=1,
+    )
+    fig, ax = plt.subplots()
+
+    msg_sizes = sorted(run_df["ADDITIONAL_DATA_SIZE"].unique())
+    size_labels = {size: format_size(size) for size in msg_sizes}
+    run_df["msg_size"] = run_df["ADDITIONAL_DATA_SIZE"].map(size_labels)
+
+    sns.lineplot(
+        ax=ax,
+        data=run_df,
+        x="msg_size",
+        y="utilization_percentage",
+        errorbar="sd",
+        marker="o",
+    )
+
+    ax.grid(True, alpha=0.4)
+    ax.set_ylim(bottom=0)
+    ax.set_xlabel("File size")
+    ax.set_ylabel("CPU usage")
+    plt.savefig(f"{out_path}/cpu_usage_vs_size.svg", bbox_inches="tight")
+    plt.close()
+    print(f"wrote {out_path}/cpu_usage_vs_size.svg")
+
+
 def plot_req_comp_time_vs_cluster(dl_completion_path, out_path, normalize):
     dl_comp_df = pd.read_csv(dl_completion_path)
     dl_comp_df["cluster"] = dl_comp_df["cluster"].str.capitalize()
@@ -648,7 +699,7 @@ def plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out
         retrans_df = uc_retransmissions_path_df[
             uc_retransmissions_path_df["msg_size"] == size
         ]
-        retrans_df = retrans_df[retrans_df["time"] <= 25000]
+        # retrans_df = retrans_df[retrans_df["time"] <= 25000]
         size_rct_df = rct_df[rct_df["msg_size"] == size]
 
         sns.set_style("whitegrid")
@@ -773,6 +824,8 @@ def main(
     uc_retransmissions_path,
     data_size=None,
     no_title=False,
+    cpu_path=None,
+    server_cpus="0-7",
 ):
 
     # plot_req_comp_time_vs_run(dl_completion_path, out_path, True)
@@ -791,6 +844,9 @@ def main(
 
     plot_est_rtt_vs_size_cluster(est_rtt_path, out_path)
     plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out_path)
+
+    if cpu_path is not None:
+        plot_cpu_usage_vs_size(cpu_path, out_path, server_cpus)
 
     data_df = parse_raw_logs(Path(raw_path))
     if data_df.empty:
@@ -871,6 +927,18 @@ if __name__ == "__main__":
         action="store_true",
         help="don't add a title to graphs",
     )
+    parser.add_argument(
+        "--cpu-path",
+        type=file_path,
+        default=None,
+        help="cpu load csv (e.g. ./npf-out/{test_name}_cpu.csv)",
+    )
+    parser.add_argument(
+        "--server-cpus",
+        type=str,
+        default="0-7",
+        help="taskset -c range the server was pinned to",
+    )
     args = parser.parse_args()
 
     main(
@@ -884,4 +952,6 @@ if __name__ == "__main__":
         args.uc_retransmissions,
         args.data_size,
         args.no_title,
+        args.cpu_path,
+        args.server_cpus,
     )
