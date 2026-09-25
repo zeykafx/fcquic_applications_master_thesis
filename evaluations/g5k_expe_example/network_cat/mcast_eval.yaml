@@ -1,10 +1,11 @@
 topology:
   name: "gem_g5k_net_eval"
-  wall_time: "2hr"
+  wall_time: "6hr"
   relay_nodes: false # whether to add one relay machine in each cluster
   netns_per_client: 15 # number of network namespaces to run on each client
   # see the possible frrouting version at https://deb.frrouting.org/
-  frrouting_version: "frr-10.4"
+  # frrouting_version: "frr-10.4"
+  frrouting_version: "frr-10.7"
   router_template: "base_router_config_ospf.frr" # path to the router configuration template
 
   server:
@@ -26,8 +27,11 @@ topology:
       cluster: ecotype
       # cluster: econome
       number: 5
-    - name: lyon
-      cluster: nova
+    # - name: lyon
+    #   cluster: nova
+    #   number: 5
+    - name: toulouse
+      cluster: montcalm
       number: 5
 
   # links are established between routers in different clusters

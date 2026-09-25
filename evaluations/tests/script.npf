@@ -38,7 +38,8 @@ TEST_LENGTH=4
 FALLBACK_DELAY=1000
 ADDITIONAL_DATA_SIZE=1100
 // # ------------- LATENCY TEST: use the latency tag -------------
-latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
+latency:CURRENT_TEST="FCQUIC"
+// # latency:CURRENT_TEST={"FCQUIC","TCP","TCP_NO_TLS","TOKIO_QUICHE"}
 latency:NUM_CLIENTS=1
 latency:TEST_DIR_NAME="latency"
 latency:TOPO_CONF_NAME="medium_0%_loss"
@@ -122,7 +123,7 @@ echo "Building project"
 
 if [ "$RELEASE_MODE" = "true" ]; then
     echo "building all in release mode"
-    $CARGO_PATH build --release 
+    $CARGO_PATH build --release
 
    	cp ./target/release/quic-server $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-server
     cp ./target/release/quic-client $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/bin/quic-client
@@ -154,7 +155,7 @@ cp ./cert.key $WORKDIR/evaluations/tests/${TEST_DIR_NAME}/cert.key
 
 
 // ------------------------ SERVER ------------------------
-%script@server sudo=true 
+%script@server sudo=true
 
 # Kill any server or client application still running
 pkill quic-client || true
@@ -424,5 +425,3 @@ echo "All clients started"
 for pid in ${pids[*]}; do
     wait $pid
 done
-
-

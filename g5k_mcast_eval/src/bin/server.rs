@@ -281,9 +281,11 @@ async fn main() {
                     }
 
                     rx_app.close();
+                    // fcquiche.flush_qlog_writer();
+                    tokio::time::sleep(Duration::from_secs_f64(2.0)).await;
 
-                    debug!("Server stopped");
-                    println!("Server stopped");
+                    debug!("Server stopped after test end");
+                    println!("Server stopped after test end");
 
                     std::process::exit(0);
 
@@ -297,6 +299,7 @@ async fn main() {
 
     debug!("Server stopped");
     println!("Server stopped");
+    // fcquiche.flush_qlog_writer();
 
     // force exit
     std::process::exit(0);

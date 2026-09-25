@@ -24,7 +24,7 @@ fi
 
 # defaults
 TEST_DIR_NAME="receivers"
-TOPO_CONF_NAME="receivers_0%_loss"
+TOPO_CONF_NAME="receivers"
 USE_POISSON="true"
 TAGS_TO_USE=""
 

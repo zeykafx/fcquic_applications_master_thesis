@@ -6,7 +6,9 @@ import re
 import sys
 from pathlib import Path
 
+from matplotlib import ticker
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator, MultipleLocator
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -112,7 +114,7 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
     # width = 7
     # height = 4
 
-    latexify(nb_subplots_line=1, fig_height=2.2, columns=1)
+    latexify(nb_subplots_line=1, fig_height=1.8, columns=1)
     fig, ax = plt.subplots()
 
     for i, cluster in enumerate(clusters):
@@ -141,7 +143,7 @@ def plot_cluster_cdfs(data_df, out_path, name, data_size=None, no_title=False):
         mode="expand",
         borderaxespad=0.0,
     )
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, alpha=0.4)
     fig.tight_layout()
 
     data_size_str = f"_datasize_{data_size}" if data_size is not None else ""
@@ -214,7 +216,7 @@ def plot_combined_cdfs(
     print(f"wrote {out_path}/cdf_{name}_{sizes_str}.svg")
 
 
-def normalize_rct(dl_comp_df, by="msg_size"):
+def normalize_rct(dl_comp_df, by=["msg_size"]):
     medians = dl_comp_df.groupby(by)["duration"].transform("median")
     return dl_comp_df["duration"].div(medians)
 
@@ -321,12 +323,10 @@ def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, normalize):
         dl_comp_df["duration"] = normalize_rct(dl_comp_df)
 
     sns.set_style("whitegrid")
-    width = 5
-    height = 2
     latexify(
         nb_subplots_line=1,
         columns=1,
-        fig_height=1,
+        fig_height=1.2,
     )
     fig, ax = plt.subplots()
 
@@ -334,37 +334,93 @@ def plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, normalize):
     size_labels = {size: format_size(size) for size in msg_sizes}
     dl_comp_df["msg_size"] = dl_comp_df["msg_size"].map(size_labels)
     order = [size_labels[size] for size in msg_sizes]
-    # palette = [COLORS[i % len(COLORS)] for i in range(len(msg_sizes))]
-    palette = sns.color_palette("colorblind")
 
-    g = sns.lineplot(
+    sns.boxplot(
         ax=ax,
         data=dl_comp_df,
         x="msg_size",
         y="duration",
-        errorbar="sd",
-        # hue="msg_size",
-        # hue_order=order,
-        # order=order,
-        palette=palette,
-        # err_style="bars"
-        # legend=False,
+        order=order,
+        color=sns.color_palette("colorblind")[0],
+        whis=(5, 95),
+        width=0.5,
+        linewidth=0.8,
+        fliersize=1.5,
+        flierprops={"marker": ".", "alpha": 0.4},
     )
+    # g = sns.boxplot(
+    #     ax=ax,
+    #     data=dl_comp_df,
+    #     x="msg_size",
+    #     y="duration",
+    #     hue="msg_size",
+    #     hue_order=order,
+    #     order=order,
+    #     # palette=palette,
+    #     whis=(5, 95),
+    #     # estimator="median",
+    #     # errorbar=("pi", 90),  # 5th to 95th percentile
+    #     # err_style="bars"
+    # )
 
-    ax.grid(True, alpha=0.4)
+    ax.grid(True, alpha=0.5)
+    if normalize:
+        ax.axhline(1, color="grey", linewidth=0.6, linestyle="--", zorder=0)
+    # else:
     # ax.set_yscale("log")
+    # ax.yaxis.set_major_locator(ticker.LogLocator(base=10, numticks=10))
+    # ax.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs="auto", numticks=10))
+
+    # ax.yaxis.set_major_locator(MaxNLocator(nbins=10))
+    # ax.set_yscale("log")
+    # ax.yaxis.set_major_locator(ticker.LogLocator(base=10, numticks=10))
+    # ax.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs="auto", numticks=10))
+    ax.grid(True, alpha=0.5)
     ax.set_xlabel("File size")
-    ax.set_ylabel(f"{"Norm. " if normalize else ""}RCT (ms)")
-    plt.savefig(
-        f"{out_path}/{"norm_" if normalize else ""}rct_boxplot.svg",
-        bbox_inches="tight",
-    )
+    ax.set_ylabel("Norm. transfer duration" if normalize else "Transfer duration (ms)")
+    prefix = "norm_" if normalize else ""
+    plt.savefig(f"{out_path}/{prefix}rct_boxplot.svg", bbox_inches="tight")
     plt.close()
-    print(f"wrote {out_path}/{"norm_" if normalize else ""}rct_boxplot.svg")
+    print(f"wrote {out_path}/{prefix}rct_boxplot.svg")
+
+
+def plot_rct_cdf_10mb(dl_completion_path, out_path):
+    df = pd.read_csv(dl_completion_path)
+    df = df[df["msg_size"] == 10_000_000].copy()
+    df["rct_s"] = df["duration"] / 1000
+
+    sns.set_style("ticks")
+    latexify(nb_subplots_line=1, columns=1, fig_height=1.1)
+    fig, ax = plt.subplots()
+
+    color = sns.color_palette("colorblind")[1]
+    sns.ecdfplot(ax=ax, data=df, x="rct_s", color=color, linewidth=1.2)
+
+    median = df["rct_s"].median()
+    ax.axvline(median, color="grey", linewidth=0.8, linestyle="--", zorder=0)
+
+    lo, hi = df["rct_s"].min(), df["rct_s"].max()
+    pad = 0.05 * (hi - lo)
+    ax.set_xlim(lo - pad, hi + pad)
+    ax.set_ylim(0, 1.02)
+
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
+
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25))
+    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2g"))
+
+    ax.grid(True, which="major", alpha=0.4, linewidth=0.4)
+    # sns.despine(ax=ax)
+
+    ax.set_xlabel("Transfer duration (s)")
+    ax.set_ylabel("CDF")
+    plt.savefig(f"{out_path}/rct_cdf_10mb.svg", bbox_inches="tight")
+    plt.close()
+    print(f"wrote {out_path}/rct_cdf_10mb.svg")
 
 
 def parse_cpu_range(cpus):
-    """Parse a taskset -c style range ("0-7", "0,2,4-6") into a list of cpu ids."""
     ids = []
     for part in cpus.split(","):
         lo, _, hi = part.partition("-")
@@ -380,9 +436,9 @@ def plot_cpu_usage_vs_size(cpu_path, out_path, server_cpus="0-7"):
     sample_df = cpu_df.groupby(
         ["ADDITIONAL_DATA_SIZE", "run_index", "time_rel"], as_index=False
     )["utilization_percentage"].mean()
-    run_df = sample_df.groupby(
-        ["ADDITIONAL_DATA_SIZE", "run_index"], as_index=False
-    )["utilization_percentage"].mean()
+    run_df = sample_df.groupby(["ADDITIONAL_DATA_SIZE", "run_index"], as_index=False)[
+        "utilization_percentage"
+    ].mean()
 
     sns.set_style("whitegrid")
     latexify(
@@ -702,21 +758,13 @@ def plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out
         # retrans_df = retrans_df[retrans_df["time"] <= 25000]
         size_rct_df = rct_df[rct_df["msg_size"] == size]
 
-        sns.set_style("whitegrid")
+        sns.set_style("ticks")
         latexify(
             nb_subplots_line=1,
             columns=1,
             fig_height=1.5,
         )
-        fig_width, fig_height = plt.rcParams["figure.figsize"]
         fig, ax = plt.subplots()
-        # fig, (ax, ax_events) = plt.subplots(
-        #     2,
-        #     1,
-        #     sharex=True,
-        #     gridspec_kw=dict(height_ratios=[3, 1.4]),
-        #     figsize=(fig_width, fig_height * 1.6),
-        # )
 
         run_means_df = size_rct_df.groupby(
             ["msg_size", "run_index"], as_index=False
@@ -744,7 +792,7 @@ def plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out
             run: dash_patterns[i % len(dash_patterns)] for i, run in enumerate(runs)
         }
         run_linestyles = {run: (0, d) if d else "-" for run, d in run_dashes.items()}
-        run_labels = {fastest_run: "Fastest", slowest_run: "Slowest"}
+        run_labels = {fastest_run: "Fastest run", slowest_run: "Slowest run"}
 
         g = sns.lineplot(
             ax=ax,
@@ -787,7 +835,7 @@ def plot_cwnd_growth(cwnd_path, uc_retransmissions_path, dl_completion_path, out
                 )
                 for run in runs
             ],
-            labels=[f"{run_labels[run]} ({run})" for run in runs],
+            labels=[f"{run_labels[run]}" for run in runs],
             loc="upper center",
             ncols=2,
             fontsize=9,
@@ -836,8 +884,10 @@ def main(
     # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, True)
     # plot_req_comp_time_vs_cluster(dl_completion_path, out_path, False)
 
-    # plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, True)
+    plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, True)
     plot_boxplot_req_comp_time_vs_size(dl_completion_path, out_path, False)
+    # plot_rct_per_run(dl_completion_path, out_path)
+    plot_rct_cdf_10mb(dl_completion_path, out_path)
 
     plot_loss_rate_vs_cluster(losses_path, out_path)
     # plot_loss_rate_vs_run(losses_path, out_path)
